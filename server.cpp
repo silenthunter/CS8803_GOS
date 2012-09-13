@@ -6,6 +6,16 @@
  * Contains the HTTP_Server class
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <iostream>
+#include <string.h>
+
+using namespace std;
+
 /**
  * @brief A multi-threaded server that parses basic HTTP commands
  */
@@ -13,6 +23,13 @@ class HTTP_Server
 {
 	private:
 	int port;
+	int queueSize;
+	
+	void error(string errorText)
+	{
+		cout << errorText << endl;
+	}
+	
 
 	public:
 
@@ -21,13 +38,14 @@ class HTTP_Server
 	 * 
 	 * @param port The port the server will bind to
 	 */
-	void HTTP_Server(int port)
+	HTTP_Server(int serverPort)
 	{
-		this.port = port;
+		port = serverPort;
+		queueSize = 5;
 	}
 
 	/**
-	 * Initializes a worker thread pool that will handle the client requests
+	 * @brief Initializes a worker thread pool that will handle the client requests
 	 * 
 	 * @param poolSize The size of the threadpool that will be initialized
 	 */
@@ -46,12 +64,55 @@ class HTTP_Server
 	}
 	
 	/**
-	 * Retrieves the file and sends it back to the client
+	 * @brief The boss thread that will loop while accepting client 
+	 * connections and handing them to worker threads
 	 * 
-	 * @param fileName The name of the file to be retrieved
-	 * @param sockNo The file descriptor for the client's socket
+	 * @note http://www.linuxhowtos.org/C_C++/socket.htm
 	 */
-	void parseHTTPRequest(string fileName, int sockNo)
+	void bossThread(void*)
+	{
+		struct sockaddr_in serv_addr, client_addr;
+		
+		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		if(sockfd < 0)
+			error("Unable to open socket");
+			
+		//Clear the structs
+		bzero(&serv_addr, sizeof(serv_addr));
+		bzero(&client_addr, sizeof(client_addr));
+		
+		//sets server information
+		serv_addr.sin_family = AF_INET;
+		serv_addr.sin_port = htons(port);//Host to network
+		serv_addr.sin_addr.s_addr = INADDR_ANY;
+		
+		if(bind(sockfd, (const sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
+			error("Bind faild on port: " + port);
+			
+		listen(sockfd, queueSize);
+	}
+	
+	/**
+	 * @brief The method worker tasks run that receive client information
+	 * from the boss thread
+	 */
+	void workerThreadTask()
 	{
 	}
+	
+	/**
+	 * @brief Retrieves the file and returns the string to send back to the client
+	 * 
+	 * @param fileName The name of the file to be retrieved
+	 * 
+	 * @return The HTTP formatted response string
+	 */
+	string parseHTTPRequest(string fileName)
+	{
+		return "temp";
+	}
+};
+
+int main(int argc, char* argv[])
+{
 }
