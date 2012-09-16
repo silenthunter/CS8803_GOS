@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <iostream>
 #include <string.h>
+#include <pthread.h>
 
 using namespace std;
 
@@ -22,10 +23,19 @@ using namespace std;
 class HTTP_Server
 {
 	private:
+	///The port that the server listens on
 	int port;
+	
+	///The number of clients that can connect before the server must accept
 	int queueSize;
 	
-	void error(string errorText)
+	///The mutex that synchronizes the boss thread and the worker threads
+	pthread_mutex_t acceptLock;
+	
+	//Boolean that tracks the running state of the server
+	//static bool serverRunning;
+	
+	static void error(string errorText)
 	{
 		cout << errorText << endl;
 	}
@@ -42,6 +52,7 @@ class HTTP_Server
 	{
 		port = serverPort;
 		queueSize = 5;
+		//serverRunning = true;
 	}
 
 	/**
@@ -61,6 +72,8 @@ class HTTP_Server
 	 */
 	void beginAcceptLoop()
 	{
+		pthread_t masterThread;
+		pthread_create(&masterThread, NULL, HTTP_Server::bossThread, this);
 	}
 	
 	/**
@@ -69,9 +82,11 @@ class HTTP_Server
 	 * 
 	 * @note http://www.linuxhowtos.org/C_C++/socket.htm
 	 */
-	void bossThread(void*)
+	static void *bossThread(void* input)
 	{
-		struct sockaddr_in serv_addr, client_addr;
+		HTTP_Server* thisSrv = (HTTP_Server*) input;
+		int portIN = thisSrv->port;
+		struct sockaddr_in serv_addr;
 		
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		if(sockfd < 0)
@@ -79,17 +94,30 @@ class HTTP_Server
 			
 		//Clear the structs
 		bzero(&serv_addr, sizeof(serv_addr));
-		bzero(&client_addr, sizeof(client_addr));
 		
 		//sets server information
 		serv_addr.sin_family = AF_INET;
-		serv_addr.sin_port = htons(port);//Host to network
+		serv_addr.sin_port = htons(portIN);//Host to network
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		
 		if(bind(sockfd, (const sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-			error("Bind faild on port: " + port);
+			error("Bind faild on port: " + portIN);
 			
-		listen(sockfd, queueSize);
+		listen(sockfd, thisSrv->queueSize);
+		
+		int running = true;
+		//Loop and accept connections
+		while(running)
+		{
+			struct sockaddr_in *client_addr = new sockaddr_in;
+			bzero(&client_addr, sizeof(client_addr));
+			socklen_t clientlen = sizeof(*client_addr);
+			int newsockfd = accept(sockfd, (struct sockaddr *) client_addr, &clientlen);
+			
+			running = false;
+		}
+		
+		pthread_exit(0);
 	}
 	
 	/**
@@ -113,6 +141,9 @@ class HTTP_Server
 	}
 };
 
-int main(int argc, char* argv[])
+/*int main(int argc, char* argv[])
 {
-}
+	HTTP_Server srv(25000);
+	srv.beginAcceptLoop();
+	sleep(5000);
+}*/
