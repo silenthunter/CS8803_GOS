@@ -14,8 +14,15 @@
 #include <iostream>
 #include <string.h>
 #include <pthread.h>
+#include <queue>
 
 using namespace std;
+
+struct requestData
+{
+	string filePath;
+	int socketNum;
+};
 
 /**
  * @brief A multi-threaded server that parses basic HTTP commands
@@ -29,8 +36,20 @@ class HTTP_Server
 	///The number of clients that can connect before the server must accept
 	int queueSize;
 	
+	///Array of worker threads that will handle client requests
+	pthread_t* workerThreads;
+	
+	///Pthreads condition that will be 'signaled' when a client is accepted
+	pthread_cond_t acceptCondition;
+	
+	///Controls whether the server is running or not
+	bool running;
+	
 	///The mutex that synchronizes the boss thread and the worker threads
 	pthread_mutex_t acceptLock;
+	
+	///Queue that file requests are placed in
+	queue<requestData> requestQueue;
 	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
@@ -52,7 +71,10 @@ class HTTP_Server
 	{
 		port = serverPort;
 		queueSize = 5;
-		//serverRunning = true;
+		running = true;
+		
+		acceptCondition = PTHREAD_COND_INITIALIZER;
+		acceptLock = PTHREAD_MUTEX_INITIALIZER;
 	}
 
 	/**
@@ -62,6 +84,13 @@ class HTTP_Server
 	 */
 	void setupThreadPool(int poolSize)
 	{
+		cout << "Setting up" << endl;
+		workerThreads = new pthread_t[poolSize];
+		for(int i = 0; i < poolSize; i++)
+		{
+			workerThreads[i] = pthread_t();
+			pthread_create(&workerThreads[i], NULL, HTTP_Server::workerThreadTask, this);
+		}
 	}
 
 	/**
@@ -105,16 +134,13 @@ class HTTP_Server
 			
 		listen(sockfd, thisSrv->queueSize);
 		
-		int running = true;
 		//Loop and accept connections
-		while(running)
+		while(thisSrv->running)
 		{
 			struct sockaddr_in *client_addr = new sockaddr_in;
 			bzero(&client_addr, sizeof(client_addr));
 			socklen_t clientlen = sizeof(*client_addr);
 			int newsockfd = accept(sockfd, (struct sockaddr *) client_addr, &clientlen);
-			
-			running = false;
 		}
 		
 		pthread_exit(0);
@@ -124,8 +150,21 @@ class HTTP_Server
 	 * @brief The method worker tasks run that receive client information
 	 * from the boss thread
 	 */
-	void workerThreadTask()
+	static void *workerThreadTask(void* input)
 	{
+		HTTP_Server* thisSrv = (HTTP_Server*)input;
+		
+		while(thisSrv->running)
+		{
+			pthread_mutex_lock(&thisSrv->acceptLock);
+			
+			//Loop while there aren't any requests
+			do
+				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
+			while(thisSrv->requestQueue.size() > 0);
+			
+			pthread_mutex_unlock(&thisSrv->acceptLock);
+		}
 	}
 	
 	/**
@@ -140,10 +179,3 @@ class HTTP_Server
 		return "temp";
 	}
 };
-
-/*int main(int argc, char* argv[])
-{
-	HTTP_Server srv(25000);
-	srv.beginAcceptLoop();
-	sleep(5000);
-}*/
