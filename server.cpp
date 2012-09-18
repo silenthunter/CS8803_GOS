@@ -20,7 +20,6 @@ using namespace std;
 
 struct requestData
 {
-	string filePath;
 	int socketNum;
 };
 
@@ -49,7 +48,7 @@ class HTTP_Server
 	pthread_mutex_t acceptLock;
 	
 	///Queue that file requests are placed in
-	queue<requestData> requestQueue;
+	queue<requestData*> requestQueue;
 	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
@@ -130,7 +129,7 @@ class HTTP_Server
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		
 		if(bind(sockfd, (const sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-			error("Bind faild on port: " + portIN);
+			error("Bind failed on port: " + portIN);
 			
 		listen(sockfd, thisSrv->queueSize);
 		
@@ -141,6 +140,14 @@ class HTTP_Server
 			bzero(&client_addr, sizeof(client_addr));
 			socklen_t clientlen = sizeof(*client_addr);
 			int newsockfd = accept(sockfd, (struct sockaddr *) client_addr, &clientlen);
+			
+			pthread_mutex_lock(&thisSrv->acceptLock);
+			//Add this connection to the request queue
+			struct requestData* data = new requestData();
+			data->socketNum = newsockfd;
+			thisSrv->requestQueue.push(data);
+			pthread_mutex_unlock(&thisSrv->acceptLock);
+			pthread_cond_signal(&thisSrv->acceptCondition);
 		}
 		
 		pthread_exit(0);
@@ -153,17 +160,49 @@ class HTTP_Server
 	static void *workerThreadTask(void* input)
 	{
 		HTTP_Server* thisSrv = (HTTP_Server*)input;
+		char buffer[255];
 		
 		while(thisSrv->running)
 		{
+			requestData *data;
+			
+			#pragma region Critical Section
 			pthread_mutex_lock(&thisSrv->acceptLock);
+			cout << "Locking" << endl;
 			
 			//Loop while there aren't any requests
 			do
+			{
 				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
+				cout << "Trigger" << endl;
+			}
 			while(thisSrv->requestQueue.size() > 0);
 			
+			//Get the next client in the queue
+			data = thisSrv->requestQueue.front();
+			thisSrv->requestQueue.pop();
+			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
+			#pragma endregion
+			
+			cout << "test1" << endl;
+			
+			string input = "";
+			
+			bool EOL_Found = false;
+			while(!EOL_Found)
+			{
+				int bytesRead = read(data->socketNum, &buffer, 255);
+				input += string(buffer, 0, bytesRead);
+				cout << buffer << endl;
+				
+				if(input.find("\n\n") >= 0)
+					EOL_Found = true;
+			}
+			
+			cout << input << endl;
+			
+			delete data;
 		}
 	}
 	
