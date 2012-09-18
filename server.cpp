@@ -176,7 +176,7 @@ class HTTP_Server
 				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
 				cout << "Trigger" << endl;
 			}
-			while(thisSrv->requestQueue.size() > 0);
+			while(thisSrv->requestQueue.size() == 0);
 			
 			//Get the next client in the queue
 			data = thisSrv->requestQueue.front();
@@ -194,9 +194,9 @@ class HTTP_Server
 			{
 				int bytesRead = read(data->socketNum, &buffer, 255);
 				input += string(buffer, 0, bytesRead);
-				cout << buffer << endl;
 				
-				if(input.find("\n\n") >= 0)
+				//Carriage returns exists in the protocol
+				if(input.find("\r\n\r\n") != string::npos)
 					EOL_Found = true;
 			}
 			
