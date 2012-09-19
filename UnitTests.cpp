@@ -6,9 +6,11 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+HTTP_Server srv(25000);
+
 TEST(bossThreadTest, SingleConnection)
 {
-	HTTP_Server srv(25000);
+	//HTTP_Server srv(25000);
 	srv.beginAcceptLoop();
 	
 	//Wait for the server to bind and listen
@@ -32,6 +34,13 @@ TEST(bossThreadTest, SingleConnection)
 	EXPECT_EQ(connected, 0);
 	
 }
+
+class Environment {
+	public:
+	virtual ~Environment() {}
+	virtual void SetUp() {}
+	virtual void TearDown() {}
+};
 
 int main(int argc, char* argv[])
 {

@@ -15,6 +15,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <queue>
+#include <fstream>
 
 using namespace std;
 
@@ -168,13 +169,11 @@ class HTTP_Server
 			
 			#pragma region Critical Section
 			pthread_mutex_lock(&thisSrv->acceptLock);
-			cout << "Locking" << endl;
 			
 			//Loop while there aren't any requests
 			do
 			{
 				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
-				cout << "Trigger" << endl;
 			}
 			while(thisSrv->requestQueue.size() == 0);
 			
@@ -184,8 +183,6 @@ class HTTP_Server
 			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 			#pragma endregion
-			
-			cout << "test1" << endl;
 			
 			string input = "";
 			
@@ -200,7 +197,13 @@ class HTTP_Server
 					EOL_Found = true;
 			}
 			
-			cout << input << endl;
+			string fileContents = parseHTTPRequest("test.txt");
+			cout << fileContents << endl;
+			
+			
+			write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));
+			
+			shutdown(data->socketNum, 2);
 			
 			delete data;
 		}
@@ -213,8 +216,24 @@ class HTTP_Server
 	 * 
 	 * @return The HTTP formatted response string
 	 */
-	string parseHTTPRequest(string fileName)
+	static string parseHTTPRequest(string fileName)
 	{
-		return "temp";
+		string retn, tmpLine;
+		ifstream inFile(fileName);
+		
+		//Make sure the file opened
+		if(inFile.is_open())
+		{
+			while(inFile.good())
+			{
+				getline(inFile, tmpLine);
+				retn += tmpLine;
+			}
+			inFile.close();
+		}
+		else
+			retn = "404";//TODO: Make real 404
+			
+		return retn;
 	}
 };
