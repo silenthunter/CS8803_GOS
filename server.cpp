@@ -200,6 +200,8 @@ class HTTP_Server
 			int idx1 = input.find(' ');
 			int idx2 = input.find(' ', idx1 + 1);
 			
+			//TODO: Catch malformed requests
+			
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
 			
