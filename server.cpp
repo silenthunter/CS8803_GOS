@@ -197,7 +197,15 @@ class HTTP_Server
 					EOL_Found = true;
 			}
 			
-			string fileContents = parseHTTPRequest("test.txt");
+			int idx1 = input.find(' ');
+			int idx2 = input.find(' ', idx1 + 1);
+			
+			string method = input.substr(0, idx1);
+			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
+			
+			cout << "Method: " << method << endl << "File: " << file << endl;
+			
+			string fileContents = parseHTTPRequest(file);
 			cout << fileContents << endl;
 			
 			
@@ -219,20 +227,42 @@ class HTTP_Server
 	static string parseHTTPRequest(string fileName)
 	{
 		string retn, tmpLine;
+		string header, timeStr, body;
 		ifstream inFile(fileName);
 		
-		//Make sure the file opened
-		if(inFile.is_open())
+		//Get the time
+		time_t rawtime;
+		struct tm* timeInfo;
+		
+		time(&rawtime);
+		timeInfo = gmtime(&rawtime);
+		timeStr = asctime(timeInfo);
+		
+		//Make sure they stay withing 
+		if(fileName.find("..") != string::npos)
 		{
+			header = "HTTP/1.0 403 Forbidden";
+			body = "403 Forbidden";
+		}
+		//Make sure the file opened
+		else if(inFile.is_open())
+		{
+			header = "HTTP/1.0 200 OK";
 			while(inFile.good())
 			{
 				getline(inFile, tmpLine);
-				retn += tmpLine;
+				body += tmpLine;
 			}
 			inFile.close();
 		}
 		else
-			retn = "404";//TODO: Make real 404
+		{
+			header = "HTTP/1.0 404 Not Found";
+			body = "Page not found";
+		}
+		
+		//Combine the HTTP components
+		retn = header + "\n" + timeStr + "\n" + body;
 			
 		return retn;
 	}
