@@ -1,6 +1,19 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <iostream>
+#include <string.h>
+#include <pthread.h>
+
+using namespace std;
+
 struct workerThreadStruct
 {
 	int loopLimit;
+	int port;
 };
 
 /**
@@ -33,6 +46,22 @@ class client
 	 */
 	void runWorkerThreads(int threadCount, int loopLimit)
 	{
+		pthread_t workerThreads[threadCount];
+		workerThreadStruct wrkData;
+		wrkData.port = port;
+		wrkData.loopLimit = loopLimit;
+		
+		for(int i = 0; i < threadCount; i++)
+		{
+			workerThreads[i] = pthread_t();
+			pthread_create(&workerThreads[i], NULL, client::workerThread, &wrkData);
+		}
+		
+		//rejoin
+		for(int i = 0; i < threadCount; i++)
+		{
+			pthread_join(workerThreads[i], NULL);
+		}
 	}
 	
 	/**
@@ -42,8 +71,43 @@ class client
 	 * @param dataStruct The data structure that contains loop
 	 * and connection information
 	 */
-	void* workerThread(void* dataStruct)
+	static void *workerThread(void* dataStruct)
 	{
 		workerThreadStruct* data = (workerThreadStruct*) dataStruct;
+	
+		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		hostent *server = gethostbyname("127.0.0.1");
+		
+		struct sockaddr_in serv_addr;
+		
+		//ASSERT_NE(server, (hostent*)0x0);
+		
+		bzero((char *) &serv_addr, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		bcopy((char *)server->h_addr,
+		  (char *)&serv_addr.sin_addr.s_addr,
+		  server->h_length);
+		serv_addr.sin_port = htons(data->port);
+		
+		int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+		//EXPECT_EQ(connected, 0);
+		
+		string req = "GET test.txt HTTP/1.0\r\n\r\n";
+		
+		write(sockfd, req.c_str(), strlen(req.c_str()));
+		
+		//Read the response
+		char buffer[255];
+		string input;
+		int bytesRead = 1;
+		while(bytesRead > 0)
+		{
+			bytesRead = read(sockfd, &buffer, 255);
+			input += string(buffer, 0, bytesRead);
+		}
+		
+		cout << input << endl;
+		
+		shutdown(sockfd, 2);
 	}
 };
