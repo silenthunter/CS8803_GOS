@@ -14,6 +14,9 @@ struct workerThreadStruct
 {
 	int loopLimit;
 	int port;
+	int* runningThreads;
+	pthread_cond_t *finishedCondition;
+	pthread_mutex_t *finishedLock;
 };
 
 /**
@@ -25,6 +28,15 @@ class client
 	///The port the remote server listens on
 	int port;
 	
+	///Pthreads condition that will broadcast when all clients have been created
+	pthread_cond_t finishedCondition;
+	
+	///The mutex that synchronizes the boss thread and the worker threads
+	pthread_mutex_t finishedLock;
+	
+	///The number of threads that have been initialized
+	int runningThreads;
+	
 	public:
 	
 	/**
@@ -35,6 +47,9 @@ class client
 	client(int remotePort)
 	{
 		port = remotePort;
+		
+		finishedCondition = PTHREAD_COND_INITIALIZER;
+		finishedLock = PTHREAD_MUTEX_INITIALIZER;
 	}
 	
 	/**
@@ -50,12 +65,22 @@ class client
 		workerThreadStruct wrkData;
 		wrkData.port = port;
 		wrkData.loopLimit = loopLimit;
+		wrkData.runningThreads = &runningThreads;
+		wrkData.finishedCondition = &finishedCondition;
+		wrkData.finishedLock = &finishedLock;
+		
+		runningThreads = 0;
 		
 		for(int i = 0; i < threadCount; i++)
 		{
 			workerThreads[i] = pthread_t();
 			pthread_create(&workerThreads[i], NULL, client::workerThread, &wrkData);
 		}
+		
+		//spin wait for the threads
+		while(runningThreads < threadCount);
+		
+		pthread_cond_broadcast(&finishedCondition);
 		
 		//rejoin
 		for(int i = 0; i < threadCount; i++)
@@ -74,6 +99,12 @@ class client
 	static void *workerThread(void* dataStruct)
 	{
 		workerThreadStruct* data = (workerThreadStruct*) dataStruct;
+		
+		//Wait for permission to continue
+		pthread_mutex_lock(data->finishedLock);
+		(*data->runningThreads)++;
+		pthread_cond_wait( data->finishedCondition, data->finishedLock );
+		pthread_mutex_unlock(data->finishedLock);
 	
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		hostent *server = gethostbyname("127.0.0.1");
