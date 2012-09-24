@@ -205,10 +205,10 @@ class HTTP_Server
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
 			
-			cout << "Method: " << method << endl << "File: " << file << endl;
+			//cout << "Method: " << method << endl << "File: " << file << endl;
 			
 			string fileContents = parseHTTPRequest(file);
-			cout << fileContents << endl;
+			//cout << fileContents << endl;
 			
 			
 			write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));

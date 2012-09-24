@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 using namespace std;
 
@@ -80,6 +81,10 @@ class client
 		//spin wait for the threads
 		while(runningThreads < threadCount);
 		
+		//Start the timer
+		struct timeval start, end;
+		gettimeofday(&start, NULL);
+		
 		pthread_cond_broadcast(&finishedCondition);
 		
 		//rejoin
@@ -87,6 +92,17 @@ class client
 		{
 			pthread_join(workerThreads[i], NULL);
 		}
+		
+		//get the end time
+		gettimeofday(&end, NULL);
+		
+		long  seconds  = end.tv_sec  - start.tv_sec;
+		long useconds = end.tv_usec - start.tv_usec;
+
+		long mtime = (seconds) * 1000000 + useconds;
+		
+		cout << mtime << endl;
+
 	}
 	
 	/**
@@ -105,40 +121,44 @@ class client
 		(*data->runningThreads)++;
 		pthread_cond_wait( data->finishedCondition, data->finishedLock );
 		pthread_mutex_unlock(data->finishedLock);
-	
-		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		hostent *server = gethostbyname("127.0.0.1");
 		
-		struct sockaddr_in serv_addr;
-		
-		//ASSERT_NE(server, (hostent*)0x0);
-		
-		bzero((char *) &serv_addr, sizeof(serv_addr));
-		serv_addr.sin_family = AF_INET;
-		bcopy((char *)server->h_addr,
-		  (char *)&serv_addr.sin_addr.s_addr,
-		  server->h_length);
-		serv_addr.sin_port = htons(data->port);
-		
-		int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
-		//EXPECT_EQ(connected, 0);
-		
-		string req = "GET test.txt HTTP/1.0\r\n\r\n";
-		
-		write(sockfd, req.c_str(), strlen(req.c_str()));
-		
-		//Read the response
-		char buffer[255];
-		string input;
-		int bytesRead = 1;
-		while(bytesRead > 0)
+		for(int i = 0; i < data->loopLimit; i++)
 		{
-			bytesRead = read(sockfd, &buffer, 255);
-			input += string(buffer, 0, bytesRead);
+	
+			int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+			hostent *server = gethostbyname("127.0.0.1");
+			
+			struct sockaddr_in serv_addr;
+			
+			//ASSERT_NE(server, (hostent*)0x0);
+			
+			bzero((char *) &serv_addr, sizeof(serv_addr));
+			serv_addr.sin_family = AF_INET;
+			bcopy((char *)server->h_addr,
+			  (char *)&serv_addr.sin_addr.s_addr,
+			  server->h_length);
+			serv_addr.sin_port = htons(data->port);
+			
+			int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+			//EXPECT_EQ(connected, 0);
+			
+			string req = "GET test.txt HTTP/1.0\r\n\r\n";
+			
+			write(sockfd, req.c_str(), strlen(req.c_str()));
+			
+			//Read the response
+			char buffer[255];
+			string input;
+			int bytesRead = 1;
+			while(bytesRead > 0)
+			{
+				bytesRead = read(sockfd, &buffer, 255);
+				input += string(buffer, 0, bytesRead);
+			}
+			
+			//cout << input << endl;
+			
+			shutdown(sockfd, 2);
 		}
-		
-		cout << input << endl;
-		
-		shutdown(sockfd, 2);
 	}
 };
