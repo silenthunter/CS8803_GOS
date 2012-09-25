@@ -12,4 +12,4 @@ analyze:
 	g++ -g -o testSuite testSuite.cpp server.cpp client.cpp -lpthread -std=c++0x
 
 clean:
-	rm -f *.out UnitTests http_server http_client *.o
+	rm -f *.out UnitTests http_server http_client *.o testSuite

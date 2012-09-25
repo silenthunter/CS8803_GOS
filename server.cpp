@@ -168,7 +168,11 @@ class HTTP_Server
 			struct requestData* data = new requestData();
 			data->socketNum = newsockfd;
 			thisSrv->requestQueue.push(data);
+			//cout << "Size: " << thisSrv->requestQueue.size() << endl;
+			
+			//Signal waiting workers
 			pthread_cond_signal(&thisSrv->acceptCondition);
+			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 		}
 		
@@ -204,19 +208,21 @@ class HTTP_Server
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 			#pragma endregion
 			
-			
 			string input = "";
 			
 			bool EOL_Found = false;
+			int bytesRead = 1;
 			while(!EOL_Found)
 			{
-				int bytesRead = read(data->socketNum, &buffer, 255);
+				bytesRead = read(data->socketNum, &buffer, 255);
 				input += string(buffer, 0, bytesRead);
 				
 				//Carriage returns exists in the protocol
 				if(input.find("\r\n\r\n") != string::npos)
 					EOL_Found = true;
 			}
+			
+			if(bytesRead < 0) continue;
 			
 			int idx1 = input.find(' ');
 			int idx2 = input.find(' ', idx1 + 1);
@@ -231,8 +237,7 @@ class HTTP_Server
 			string fileContents = parseHTTPRequest(file);
 			//cout << fileContents << endl;
 			
-			
-			write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));
+			int err = write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));
 			
 			close(data->socketNum);
 			

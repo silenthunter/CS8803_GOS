@@ -10,9 +10,9 @@
 -loops? (1, 2, 4, 8)
 */
 
-int workerThreadsNum = 5;
-int workerThreads[] = {1, 2, 4, 8, 16};
-int queueSizeNum = 6;
+int workerThreadsNum = 1;
+int workerThreads[] = {3, 2, 4, 8, 16};
+int queueSizeNum = 1;
 int queueSize[] = {1, 2, 4, 8, 16, 32};
 int clientThreadsNum = 5;
 int clientThreads[] = {1, 2, 4, 8, 16};

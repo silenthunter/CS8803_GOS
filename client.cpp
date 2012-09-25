@@ -169,6 +169,11 @@ class client
 				input += string(buffer, 0, bytesRead);
 			}
 			
+			if(bytesRead < 0)
+			{
+				cout << "Errno: " << errno << endl;
+			}
+			
 			//cout << input << endl;
 			
 			close(sockfd);
