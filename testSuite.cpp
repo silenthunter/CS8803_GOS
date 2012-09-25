@@ -10,9 +10,9 @@
 -loops? (1, 2, 4, 8)
 */
 
-int workerThreadsNum = 3;
+int workerThreadsNum = 5;
 int workerThreads[] = {1, 2, 4, 8, 16};
-int queueSizeNum = 1;
+int queueSizeNum = 6;
 int queueSize[] = {1, 2, 4, 8, 16, 32};
 int clientThreadsNum = 5;
 int clientThreads[] = {1, 2, 4, 8, 16};
@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
 {
 	//Server loops
 	
-	int port = 2000;
+	int port = 20000;
 	
 	//Worker threads
 	for(int i = 0; i < workerThreadsNum; i++)

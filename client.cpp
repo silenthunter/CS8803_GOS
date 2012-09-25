@@ -141,7 +141,20 @@ class client
 			
 			int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
 			//EXPECT_EQ(connected, 0);
-			
+
+		    	struct timeval timeout;      
+			timeout.tv_sec = 1;
+			timeout.tv_usec = 0;
+
+			if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+				sizeof(timeout)) < 0)
+				printf("setsockopt failed\n");
+
+			if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+			    	sizeof(timeout)) < 0)
+			    	printf("setsockopt failed\n");
+
+				
 			string req = "GET test.txt HTTP/1.0\r\n\r\n";
 			
 			write(sockfd, req.c_str(), strlen(req.c_str()));
@@ -158,7 +171,7 @@ class client
 			
 			//cout << input << endl;
 			
-			shutdown(sockfd, 2);
+			close(sockfd);
 		}
 	}
 };

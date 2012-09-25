@@ -55,6 +55,9 @@ class HTTP_Server
 	
 	///Queue that file requests are placed in
 	queue<requestData*> requestQueue;
+
+	///The socket that is handling accepts
+	int bossfd;
 	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
@@ -102,6 +105,7 @@ class HTTP_Server
 	void shutdownServer()
 	{
 		pthread_cancel(masterThread);
+		close(bossfd);
 		
 		for(int i = 0; i < workerThreadCount; i++)
 			pthread_cancel(workerThreads[i]);
@@ -131,8 +135,12 @@ class HTTP_Server
 		struct sockaddr_in serv_addr;
 		
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		thisSrv->bossfd = sockfd;
 		if(sockfd < 0)
+		{
 			error("Unable to open socket");
+			printf("errno: %d (%d, %d, %d)\n", errno, EBADF, EINTR, EIO);
+		}
 			
 		//Clear the structs
 		bzero(&serv_addr, sizeof(serv_addr));
@@ -226,7 +234,7 @@ class HTTP_Server
 			
 			write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));
 			
-			shutdown(data->socketNum, 2);
+			close(data->socketNum);
 			
 			delete data;
 		}
