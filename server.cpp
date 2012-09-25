@@ -39,6 +39,11 @@ class HTTP_Server
 	///Array of worker threads that will handle client requests
 	pthread_t* workerThreads;
 	
+	int workerThreadCount;
+	
+	///The "boss" thread that accepts all incoming connections
+	pthread_t masterThread;
+	
 	///Pthreads condition that will be 'signaled' when a client is accepted
 	pthread_cond_t acceptCondition;
 	
@@ -85,12 +90,21 @@ class HTTP_Server
 	void setupThreadPool(int poolSize)
 	{
 		cout << "Setting up" << endl;
+		workerThreadCount = poolSize;
 		workerThreads = new pthread_t[poolSize];
 		for(int i = 0; i < poolSize; i++)
 		{
 			workerThreads[i] = pthread_t();
 			pthread_create(&workerThreads[i], NULL, HTTP_Server::workerThreadTask, this);
 		}
+	}
+	
+	void shutdownServer()
+	{
+		pthread_cancel(masterThread);
+		
+		for(int i = 0; i < workerThreadCount; i++)
+			pthread_cancel(workerThreads[i]);
 	}
 
 	/**
@@ -101,7 +115,6 @@ class HTTP_Server
 	 */
 	void beginAcceptLoop()
 	{
-		pthread_t masterThread;
 		pthread_create(&masterThread, NULL, HTTP_Server::bossThread, this);
 	}
 	
@@ -147,8 +160,8 @@ class HTTP_Server
 			struct requestData* data = new requestData();
 			data->socketNum = newsockfd;
 			thisSrv->requestQueue.push(data);
-			pthread_mutex_unlock(&thisSrv->acceptLock);
 			pthread_cond_signal(&thisSrv->acceptCondition);
+			pthread_mutex_unlock(&thisSrv->acceptLock);
 		}
 		
 		pthread_exit(0);
@@ -171,11 +184,10 @@ class HTTP_Server
 			pthread_mutex_lock(&thisSrv->acceptLock);
 			
 			//Loop while there aren't any requests
-			do
+			while(thisSrv->requestQueue.size() == 0)
 			{
 				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
 			}
-			while(thisSrv->requestQueue.size() == 0);
 			
 			//Get the next client in the queue
 			data = thisSrv->requestQueue.front();
@@ -183,6 +195,7 @@ class HTTP_Server
 			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 			#pragma endregion
+			
 			
 			string input = "";
 			

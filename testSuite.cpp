@@ -10,15 +10,15 @@
 -loops? (1, 2, 4, 8)
 */
 
-int workerThreadsNum = 1;
+int workerThreadsNum = 3;
 int workerThreads[] = {1, 2, 4, 8, 16};
 int queueSizeNum = 1;
 int queueSize[] = {1, 2, 4, 8, 16, 32};
-int clientThreadsNum = 1;
+int clientThreadsNum = 5;
 int clientThreads[] = {1, 2, 4, 8, 16};
 int fileSizeNum = 1;
 char* fileSize[] = {"256b", "1kb", "4kb", "32kb", "256kb", "1mb", "4mb"};
-int loopSizeNum = 3;
+int loopSizeNum = 4;
 int loopSize[] = {1, 2, 4, 8};
 
 int main(int argc, char* argv[])
@@ -46,13 +46,15 @@ int main(int argc, char* argv[])
 				{
 					for(int m = 0; m < loopSizeNum; m++)
 					{
-						//cout << "Client" << endl;
+						sleep(1);
+						printf("# %d %d %d %d\n", i, k, l, m);
 						client clnt(port);
 						clnt.runWorkerThreads(clientThreads[k], loopSize[m]);
 					}
 				}
 			}
 			
+			srv.shutdownServer();
 			//Wait 5 before starting a new server with a new port
 			sleep(5);
 		}
