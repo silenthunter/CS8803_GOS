@@ -265,10 +265,8 @@ class HTTP_Server
 			
 			//cout << "Method: " << method << endl << "File: " << file << endl;
 			
-			string fileContents = parseHTTPRequest(file);
+			parseHTTPRequest(file, data->socketNum);
 			//cout << fileContents << endl;
-			
-			int err = write(data->socketNum, fileContents.c_str(), strlen(fileContents.c_str()));
 			
 			close(data->socketNum);
 			
@@ -281,9 +279,8 @@ class HTTP_Server
 	 * 
 	 * @param fileName The name of the file to be retrieved
 	 * 
-	 * @return The HTTP formatted response string
 	 */
-	static string parseHTTPRequest(string fileName)
+	static void parseHTTPRequest(string fileName, int socketNum)
 	{
 		string retn, tmpLine;
 		string header, timeStr, body;
@@ -302,15 +299,27 @@ class HTTP_Server
 		{
 			header = "HTTP/1.0 403 Forbidden";
 			body = "403 Forbidden";
+			
+			string combined = header + "\n\n" + body;
+			write(socketNum, combined.c_str(), strlen(combined.c_str()));
 		}
 		//Make sure the file opened
 		else if(inFile.is_open())
 		{
-			header = "HTTP/1.0 200 OK";
-			while(inFile.good())
+			header = "HTTP/1.0 200 OK\n\n";
+			
+			//Write the header first
+			write(socketNum, header.c_str(), strlen(header.c_str()));
+			
+			char strBuf[1024];
+			inFile.seekg(0, ios::end);
+			int length = inFile.tellg();
+			inFile.seekg(0, ios::beg);
+			while(length > 0)
 			{
-				getline(inFile, tmpLine);
-				body += tmpLine;
+				inFile.read(strBuf, min(1024, length));
+				int err = write(socketNum, strBuf, min(1024, length));
+				length -= 1024;
 			}
 			inFile.close();
 		}
@@ -318,11 +327,12 @@ class HTTP_Server
 		{
 			header = "HTTP/1.0 404 Not Found";
 			body = "Page not found";
+			
+			string combined = header + "\n\n" + body;
+			write(socketNum, combined.c_str(), strlen(combined.c_str()));
 		}
 		
 		//Combine the HTTP components
 		retn = header + "\n" + timeStr + "\n" + body;
-			
-		return retn;
 	}
 };
