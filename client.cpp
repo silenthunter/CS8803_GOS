@@ -142,7 +142,7 @@ class client
 			int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
 			//EXPECT_EQ(connected, 0);
 
-		    	struct timeval timeout;      
+		    /*struct timeval timeout;      
 			timeout.tv_sec = 1;
 			timeout.tv_usec = 0;
 
@@ -152,7 +152,7 @@ class client
 
 			if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
 			    	sizeof(timeout)) < 0)
-			    	printf("setsockopt failed\n");
+			    	printf("setsockopt failed\n");*/
 
 				
 			string req = "GET test.txt HTTP/1.0\r\n\r\n";

@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <queue>
 #include <fstream>
+#include <signal.h>
 
 using namespace std;
 
@@ -43,6 +44,9 @@ class HTTP_Server
 	
 	///The "boss" thread that accepts all incoming connections
 	pthread_t masterThread;
+	
+	///The attributes threads run with
+	pthread_attr_t attr;
 	
 	///Pthreads condition that will be 'signaled' when a client is accepted
 	pthread_cond_t acceptCondition;
@@ -83,6 +87,9 @@ class HTTP_Server
 		
 		acceptCondition = PTHREAD_COND_INITIALIZER;
 		acceptLock = PTHREAD_MUTEX_INITIALIZER;
+		
+		pthread_attr_init(&attr);
+		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 	}
 
 	/**
@@ -98,17 +105,27 @@ class HTTP_Server
 		for(int i = 0; i < poolSize; i++)
 		{
 			workerThreads[i] = pthread_t();
-			pthread_create(&workerThreads[i], NULL, HTTP_Server::workerThreadTask, this);
+			pthread_create(&workerThreads[i], &attr, HTTP_Server::workerThreadTask, this);
 		}
 	}
 	
 	void shutdownServer()
 	{
 		pthread_cancel(masterThread);
-		close(bossfd);
+		pthread_join(masterThread, NULL);
+		
+		pthread_mutex_lock(&acceptLock);
+		
+		running = false;
+		pthread_cond_broadcast(&acceptCondition);
+		
+		pthread_mutex_unlock(&acceptLock);
 		
 		for(int i = 0; i < workerThreadCount; i++)
-			pthread_cancel(workerThreads[i]);
+		{
+			//pthread_cancel(workerThreads[i]);
+			pthread_join(workerThreads[i], NULL);
+		}
 	}
 
 	/**
@@ -119,7 +136,7 @@ class HTTP_Server
 	 */
 	void beginAcceptLoop()
 	{
-		pthread_create(&masterThread, NULL, HTTP_Server::bossThread, this);
+		pthread_create(&masterThread, &attr, HTTP_Server::bossThread, this);
 	}
 	
 	/**
@@ -163,7 +180,11 @@ class HTTP_Server
 			socklen_t clientlen = sizeof(*client_addr);
 			int newsockfd = accept(sockfd, (struct sockaddr *) client_addr, &clientlen);
 			
+			//Should skip the interrupted accept
+			if(newsockfd <= 0) continue;
+			
 			pthread_mutex_lock(&thisSrv->acceptLock);
+			
 			//Add this connection to the request queue
 			struct requestData* data = new requestData();
 			data->socketNum = newsockfd;
@@ -176,7 +197,7 @@ class HTTP_Server
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 		}
 		
-		pthread_exit(0);
+		//pthread_exit(0);
 	}
 	
 	/**
@@ -194,11 +215,21 @@ class HTTP_Server
 			
 			#pragma region Critical Section
 			pthread_mutex_lock(&thisSrv->acceptLock);
+			if(!thisSrv->running)
+			{
+				pthread_mutex_unlock(&thisSrv->acceptLock);
+				return NULL;
+			}
 			
 			//Loop while there aren't any requests
 			while(thisSrv->requestQueue.size() == 0)
 			{
 				pthread_cond_wait( &thisSrv->acceptCondition, &thisSrv->acceptLock );
+				if(!thisSrv->running)
+				{
+					pthread_mutex_unlock(&thisSrv->acceptLock);
+					return NULL;
+				}
 			}
 			
 			//Get the next client in the queue
