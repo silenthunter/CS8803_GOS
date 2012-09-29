@@ -34,7 +34,7 @@ class HTTP_Server
 	///The port that the server listens on
 	int port;
 	
-	///The number of clients that can connect before the server must accept
+	///The number of clients that can connect before a worker starts processing a client
 	int queueSize;
 	
 	///Array of worker threads that will handle client requests
@@ -79,10 +79,10 @@ class HTTP_Server
 	 * 
 	 * @param port The port the server will bind to
 	 */
-	HTTP_Server(int serverPort)
+	HTTP_Server(int serverPort, int acceptQueueSize)
 	{
 		port = serverPort;
-		queueSize = 5;
+		queueSize = acceptQueueSize;
 		running = true;
 		
 		acceptCondition = PTHREAD_COND_INITIALIZER;
@@ -170,7 +170,7 @@ class HTTP_Server
 		if(bind(sockfd, (const sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
 			error("Bind failed on port: " + portIN);
 			
-		listen(sockfd, thisSrv->queueSize);
+		listen(sockfd, 5);
 		
 		//Loop and accept connections
 		while(thisSrv->running)
@@ -185,14 +185,23 @@ class HTTP_Server
 			
 			pthread_mutex_lock(&thisSrv->acceptLock);
 			
-			//Add this connection to the request queue
-			struct requestData* data = new requestData();
-			data->socketNum = newsockfd;
-			thisSrv->requestQueue.push(data);
-			//cout << "Size: " << thisSrv->requestQueue.size() << endl;
 			
-			//Signal waiting workers
-			pthread_cond_signal(&thisSrv->acceptCondition);
+			if(thisSrv->requestQueue.size() >= thisSrv->queueSize)
+			{
+				//cout << "Full!" << endl;
+				close(newsockfd);
+			}
+			else
+			{				
+				//Add this connection to the request queue
+				struct requestData* data = new requestData();
+				data->socketNum = newsockfd;
+				thisSrv->requestQueue.push(data);
+				//cout << "Size: " << thisSrv->requestQueue.size() << endl;
+				
+				//Signal waiting workers
+				pthread_cond_signal(&thisSrv->acceptCondition);
+			}
 			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
 		}
@@ -330,6 +339,9 @@ class HTTP_Server
 			
 			string combined = header + "\n\n" + body;
 			write(socketNum, combined.c_str(), strlen(combined.c_str()));
+			
+			//I need to make sure this doesn't happen in benchmarking
+			cout << "404!" << endl;
 		}
 		
 		//Combine the HTTP components

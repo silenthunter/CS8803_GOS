@@ -16,6 +16,7 @@ struct workerThreadStruct
 	int loopLimit;
 	int port;
 	int* runningThreads;
+	char* file;
 	pthread_cond_t *finishedCondition;
 	pthread_mutex_t *finishedLock;
 };
@@ -60,17 +61,21 @@ class client
 	 * @param threadCount The number of threads to spawn
 	 * @param loopLimit How many times each worker thread will run
 	 */
-	void runWorkerThreads(int threadCount, int loopLimit)
+	void runWorkerThreads(char* file, int threadCount, int loopLimit)
 	{
 		pthread_t workerThreads[threadCount];
+		
 		workerThreadStruct wrkData;
 		wrkData.port = port;
 		wrkData.loopLimit = loopLimit;
 		wrkData.runningThreads = &runningThreads;
+		wrkData.file = file;
 		wrkData.finishedCondition = &finishedCondition;
 		wrkData.finishedLock = &finishedLock;
 		
 		runningThreads = 0;
+		
+		int* retn[threadCount];
 		
 		for(int i = 0; i < threadCount; i++)
 		{
@@ -90,18 +95,26 @@ class client
 		//rejoin
 		for(int i = 0; i < threadCount; i++)
 		{
-			pthread_join(workerThreads[i], NULL);
+			pthread_join(workerThreads[i], (void**)&(retn[i]));
 		}
 		
 		//get the end time
 		gettimeofday(&end, NULL);
+		
+		//count disconnects
+		int errors = 0;
+		for(int i = 0; i < threadCount; i++)
+		{
+			errors += *retn[i];
+			delete retn[i];
+		}
 		
 		long  seconds  = end.tv_sec  - start.tv_sec;
 		long useconds = end.tv_usec - start.tv_usec;
 
 		long mtime = (seconds) * 1000000 + useconds;
 		
-		cout << mtime << endl;
+		cout << mtime << "\t" << errors << endl;
 
 	}
 	
@@ -121,6 +134,9 @@ class client
 		(*data->runningThreads)++;
 		pthread_cond_wait( data->finishedCondition, data->finishedLock );
 		pthread_mutex_unlock(data->finishedLock);
+		
+		int* errors = new int;
+		*errors = 0;
 		
 		for(int i = 0; i < data->loopLimit; i++)
 		{
@@ -155,9 +171,9 @@ class client
 			    	printf("setsockopt failed\n");*/
 
 				
-			string req = "GET test.txt HTTP/1.0\r\n\r\n";
+			string req = "GET " + string(data->file) + " HTTP/1.0\r\n\r\n";
 			
-			write(sockfd, req.c_str(), strlen(req.c_str()));
+			int err = write(sockfd, req.c_str(), strlen(req.c_str()));
 			
 			//Read the response
 			char buffer[255];
@@ -169,14 +185,21 @@ class client
 				input += string(buffer, 0, bytesRead);
 			}
 			
-			if(bytesRead < 0)
+			//An error occured
+			if(bytesRead < 0 || input.length() == 0)
 			{
-				cout << "Errno: " << errno << endl;
+				//cout << "Errno: " << errno << endl;
+				(*errors)++;
+				close(sockfd);
+				//cout << "Was full" << endl;
+				continue;
 			}
 			
 			//cout << input << endl;
 			
 			close(sockfd);
 		}
+		
+		pthread_exit(errors);
 	}
 };
