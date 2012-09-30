@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
 {
 	//Server loops
 	
-	int port = 20000;
+	int port = 30000;
 	
 	//Worker threads
 	for(int i = 0; i < workerThreadsNum; i++)

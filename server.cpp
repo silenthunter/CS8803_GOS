@@ -17,6 +17,7 @@
 #include <queue>
 #include <fstream>
 #include <signal.h>
+#include <errno.h>
 
 using namespace std;
 
@@ -85,8 +86,8 @@ class HTTP_Server
 		queueSize = acceptQueueSize;
 		running = true;
 		
-		acceptCondition = PTHREAD_COND_INITIALIZER;
-		acceptLock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_mutex_init(&acceptLock, NULL);
+		pthread_cond_init(&acceptCondition, NULL);
 		
 		pthread_attr_init(&attr);
 		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
@@ -293,7 +294,7 @@ class HTTP_Server
 	{
 		string retn, tmpLine;
 		string header, timeStr, body;
-		ifstream inFile(fileName);
+		ifstream inFile(fileName.c_str());
 		
 		//Get the time
 		time_t rawtime;

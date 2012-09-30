@@ -19,6 +19,7 @@ struct workerThreadStruct
 	char* file;
 	pthread_cond_t *finishedCondition;
 	pthread_mutex_t *finishedLock;
+	sockaddr_in* sockAddress;
 };
 
 /**
@@ -50,8 +51,8 @@ class client
 	{
 		port = remotePort;
 		
-		finishedCondition = PTHREAD_COND_INITIALIZER;
-		finishedLock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_mutex_init(&finishedLock, NULL);
+		pthread_cond_init(&finishedCondition, NULL);
 	}
 	
 	/**
@@ -72,6 +73,21 @@ class client
 		wrkData.file = file;
 		wrkData.finishedCondition = &finishedCondition;
 		wrkData.finishedLock = &finishedLock;
+
+		hostent *server = gethostbyname("127.0.0.1");
+		
+		struct sockaddr_in serv_addr;
+		
+		//ASSERT_NE(server, (hostent*)0x0);
+		
+		bzero((char *) &serv_addr, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		bcopy((char *)server->h_addr,
+		  (char *)&serv_addr.sin_addr.s_addr,
+		  server->h_length);
+		serv_addr.sin_port = htons(port);
+
+		wrkData.sockAddress = &serv_addr;
 		
 		runningThreads = 0;
 		
@@ -134,6 +150,7 @@ class client
 		(*data->runningThreads)++;
 		pthread_cond_wait( data->finishedCondition, data->finishedLock );
 		pthread_mutex_unlock(data->finishedLock);
+
 		
 		int* errors = new int;
 		*errors = 0;
@@ -142,20 +159,8 @@ class client
 		{
 	
 			int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-			hostent *server = gethostbyname("127.0.0.1");
 			
-			struct sockaddr_in serv_addr;
-			
-			//ASSERT_NE(server, (hostent*)0x0);
-			
-			bzero((char *) &serv_addr, sizeof(serv_addr));
-			serv_addr.sin_family = AF_INET;
-			bcopy((char *)server->h_addr,
-			  (char *)&serv_addr.sin_addr.s_addr,
-			  server->h_length);
-			serv_addr.sin_port = htons(data->port);
-			
-			int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+			int connected = connect(sockfd,(struct sockaddr *)data->sockAddress,sizeof(*(data->sockAddress)));
 			//EXPECT_EQ(connected, 0);
 
 		    /*struct timeval timeout;      
