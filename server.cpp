@@ -265,6 +265,8 @@ class HTTP_Server
 			
 			if(bytesRead < 0) continue;
 			
+			cout << input << endl;
+			
 			int idx1 = input.find(' ');
 			int idx2 = input.find(' ', idx1 + 1);
 			
@@ -272,6 +274,7 @@ class HTTP_Server
 			
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
+			if(file[0] == '/') file = "." + file;
 			
 			//cout << "Method: " << method << endl << "File: " << file << endl;
 			
