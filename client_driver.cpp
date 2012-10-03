@@ -2,6 +2,6 @@
 
 int main(int argc, char* argv[])
 {
-	client c(25000);
-	c.runWorkerThreads("test.txt", 5, 1);
+	client c(atoi(argv[1]));
+	c.runWorkerThreads(argv[2], atoi(argv[3]), atoi(argv[4]));
 }

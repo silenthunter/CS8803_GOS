@@ -2,9 +2,10 @@
 
 int main(int argc, char* argv[])
 {
-	HTTP_Server srv(25000, 10);
-	srv.setupThreadPool(5);
+	HTTP_Server srv(atoi(argv[1]), atoi(argv[2]));
+	srv.setupThreadPool(atoi(argv[3]));
 	srv.beginAcceptLoop();
-	//srv.running = false;
-	sleep(600);
+
+	while(1)
+		sleep(10);
 }
