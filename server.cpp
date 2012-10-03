@@ -265,7 +265,7 @@ class HTTP_Server
 			
 			if(bytesRead < 0) continue;
 			
-			cout << input << endl;
+			//cout << input << endl;
 			
 			int idx1 = input.find(' ');
 			int idx2 = input.find(' ', idx1 + 1);

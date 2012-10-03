@@ -22,6 +22,12 @@ struct workerThreadStruct
 	sockaddr_in* sockAddress;
 };
 
+struct threadReturn
+{
+	int error;
+	long recv;
+};
+
 /**
  * @brief Allows for connection to and requesting pages from an HTTP Server
  */
@@ -91,7 +97,7 @@ class client
 		
 		runningThreads = 0;
 		
-		int* retn[threadCount];
+		threadReturn* retn[threadCount];
 		
 		for(int i = 0; i < threadCount; i++)
 		{
@@ -119,9 +125,11 @@ class client
 		
 		//count disconnects
 		int errors = 0;
+		long bytesTransferred = 0;
 		for(int i = 0; i < threadCount; i++)
 		{
-			errors += *retn[i];
+			errors += retn[i]->error;
+			bytesTransferred += retn[i]->recv;
 			delete retn[i];
 		}
 		
@@ -131,6 +139,7 @@ class client
 		long mtime = (seconds) * 1000000 + useconds;
 		
 		cout << mtime << "\t" << errors << endl;
+		cout << "Bytes transferred: " << bytesTransferred << endl;
 
 	}
 	
@@ -150,10 +159,10 @@ class client
 		(*data->runningThreads)++;
 		pthread_cond_wait( data->finishedCondition, data->finishedLock );
 		pthread_mutex_unlock(data->finishedLock);
-
 		
-		int* errors = new int;
-		*errors = 0;
+		threadReturn* retn = new threadReturn;
+		retn->error = 0;
+		retn->recv = 0;
 		
 		for(int i = 0; i < data->loopLimit; i++)
 		{
@@ -188,13 +197,14 @@ class client
 			{
 				bytesRead = read(sockfd, &buffer, 255);
 				input += string(buffer, 0, bytesRead);
+				retn->recv += bytesRead;
 			}
 			
 			//An error occured
 			if(bytesRead < 0 || input.length() == 0)
 			{
 				//cout << "Errno: " << errno << endl;
-				(*errors)++;
+				retn->error++;
 				close(sockfd);
 				//cout << "Was full" << endl;
 				continue;
@@ -205,6 +215,6 @@ class client
 			close(sockfd);
 		}
 		
-		pthread_exit(errors);
+		pthread_exit(retn);
 	}
 };
