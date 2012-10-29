@@ -274,7 +274,7 @@ class HTTP_Server
 			
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
-			if(file[0] == '/') file = "." + file;
+			file = "WWW/" + file;
 			
 			//cout << "Method: " << method << endl << "File: " << file << endl;
 			
