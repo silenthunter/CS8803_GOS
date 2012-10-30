@@ -31,7 +31,7 @@ struct requestData
  */
 class HTTP_Server
 {
-	private:
+	protected:
 	///The port that the server listens on
 	int port;
 	
@@ -64,6 +64,9 @@ class HTTP_Server
 	///The socket that is handling accepts
 	int bossfd;
 	
+	///The path of the documents folder that the server will read from
+	const char* rootDir;
+	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
 	
@@ -91,6 +94,8 @@ class HTTP_Server
 		
 		pthread_attr_init(&attr);
 		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+		
+		rootDir = string("WWW/").c_str();
 	}
 
 	/**
@@ -106,7 +111,7 @@ class HTTP_Server
 		for(int i = 0; i < poolSize; i++)
 		{
 			workerThreads[i] = pthread_t();
-			pthread_create(&workerThreads[i], &attr, HTTP_Server::workerThreadTask, this);
+			pthread_create(&workerThreads[i], &attr, HTTP_Server::launchWorkerThreadTask, this);
 		}
 	}
 	
@@ -137,7 +142,18 @@ class HTTP_Server
 	 */
 	void beginAcceptLoop()
 	{
-		pthread_create(&masterThread, &attr, HTTP_Server::bossThread, this);
+		pthread_create(&masterThread, &attr, HTTP_Server::launchBossThread, this);
+	}
+	
+	/**
+	 * @brief A level of indirection to call the member function bossThread for a thread
+	 * 
+	 * @param obj The object that is creating the thread
+	 */
+	static void *launchBossThread(void* obj)
+	{
+		HTTP_Server* thisSrv = static_cast<HTTP_Server*>(obj);
+		thisSrv->bossThread(thisSrv);
 	}
 	
 	/**
@@ -146,7 +162,7 @@ class HTTP_Server
 	 * 
 	 * @note http://www.linuxhowtos.org/C_C++/socket.htm
 	 */
-	static void *bossThread(void* input)
+	virtual void *bossThread(void* input)
 	{
 		HTTP_Server* thisSrv = (HTTP_Server*) input;
 		int portIN = thisSrv->port;
@@ -211,10 +227,21 @@ class HTTP_Server
 	}
 	
 	/**
+	 * @brief A level of indirection to call the member function workerThreadTask for a thread
+	 * 
+	 * @param obj The object that is creating the thread
+	 */
+	static void *launchWorkerThreadTask(void* obj)
+	{
+		HTTP_Server* thisSrv = static_cast<HTTP_Server*>(obj);
+		thisSrv->workerThreadTask(thisSrv);
+	}
+	
+	/**
 	 * @brief The method worker tasks run that receive client information
 	 * from the boss thread
 	 */
-	static void *workerThreadTask(void* input)
+	virtual void *workerThreadTask(void* input)
 	{
 		HTTP_Server* thisSrv = (HTTP_Server*)input;
 		char buffer[255];
@@ -274,7 +301,6 @@ class HTTP_Server
 			
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
-			file = "WWW/" + file;
 			
 			//cout << "Method: " << method << endl << "File: " << file << endl;
 			
@@ -293,8 +319,11 @@ class HTTP_Server
 	 * @param fileName The name of the file to be retrieved
 	 * 
 	 */
-	static void parseHTTPRequest(string fileName, int socketNum)
+	virtual void parseHTTPRequest(string fileName, int socketNum)
 	{
+		//Prepend the document root
+		fileName = rootDir + fileName;
+		
 		string retn, tmpLine;
 		string header, timeStr, body;
 		ifstream inFile(fileName.c_str());
