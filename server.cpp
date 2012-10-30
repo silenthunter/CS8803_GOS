@@ -41,6 +41,7 @@ class HTTP_Server
 	///Array of worker threads that will handle client requests
 	pthread_t* workerThreads;
 	
+	///The number of worker threads
 	int workerThreadCount;
 	
 	///The "boss" thread that accepts all incoming connections
@@ -82,6 +83,7 @@ class HTTP_Server
 	 * @brief Instantiates the HTTP Server object
 	 * 
 	 * @param port The port the server will bind to
+	 * @param acceptQueueSize The number of clients to keep in a queue before additional connections are rejected
 	 */
 	HTTP_Server(int serverPort, int acceptQueueSize)
 	{
@@ -115,6 +117,9 @@ class HTTP_Server
 		}
 	}
 	
+	/**
+	 * @brief Stops all worker threads and the boss thread
+	 */
 	void shutdownServer()
 	{
 		pthread_cancel(masterThread);
@@ -138,7 +143,7 @@ class HTTP_Server
 	 * @brief Starts the boss thread that will accept incoming
 	 *  connections and pass them to worker threads.
 	 * 
-	 * @note Uses the port defined in @ref HTTP_Server(int port)
+	 * @note Uses the port defined in the constructor
 	 */
 	void beginAcceptLoop()
 	{
@@ -317,6 +322,7 @@ class HTTP_Server
 	 * @brief Retrieves the file and returns the string to send back to the client
 	 * 
 	 * @param fileName The name of the file to be retrieved
+	 * @param socketNum The socket number of the client that requested this file
 	 * 
 	 */
 	virtual void parseHTTPRequest(string fileName, int socketNum)
