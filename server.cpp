@@ -97,7 +97,7 @@ class HTTP_Server
 		pthread_attr_init(&attr);
 		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 		
-		rootDir = string("WWW/").c_str();
+		rootDir = "WWW/";
 	}
 
 	/**
