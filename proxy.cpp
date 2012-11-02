@@ -10,6 +10,8 @@
 #include <fstream>
 #include <signal.h>
 #include <errno.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 #include "server.cpp"
 #include "client.cpp"
 
@@ -24,10 +26,14 @@ class HTTP_Proxy : public virtual HTTP_Server
 		: HTTP_Server(recvPort, acceptQueueSize)
 	{
 		remoteServerPort = remotePort;
+#ifdef SHMEM
+		setupSharedMem();
+#endif
 	}
 	
 	virtual void parseHTTPRequest(string fileName, int socketNum)
 	{		
+#ifndef SHMEM
 		struct sockaddr_in serv_addr;
 		hostent *server = gethostbyname("127.0.0.1");
 		
@@ -59,6 +65,10 @@ class HTTP_Proxy : public virtual HTTP_Server
 		
 		//Now write the contents back to the client
 		write(socketNum, contents.c_str(), strlen(contents.c_str()));
+#else
+		
+		
+#endif
 		
 	}
 };

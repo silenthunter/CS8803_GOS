@@ -18,6 +18,12 @@
 #include <fstream>
 #include <signal.h>
 #include <errno.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
+
+#define SHMEM
+#define SHNUM 6 //The number of shared memory segments
+#define SHSIZE 1024 //The size of each segment
 
 using namespace std;
 
@@ -67,6 +73,18 @@ class HTTP_Server
 	
 	///The path of the documents folder that the server will read from
 	const char* rootDir;
+
+	///The current head of the shared memory queue
+	unsigned int queueHead;
+
+	///The current tail of the shared memory queue
+	unsigned int queueTail;
+
+	///Queue for getting a shared memory slot
+	int* sharedQueue;
+	
+	///An array of pointers to the sections of shared memory
+	int** shMem;
 	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
@@ -74,6 +92,31 @@ class HTTP_Server
 	static void error(string errorText)
 	{
 		cout << errorText << endl;
+	}
+
+	/**
+	* @brief Creates and connects to shared memory
+	*/
+	void setupSharedMem()
+	{
+		sharedQueue = new int[workerThreadCount];
+		shMem = new int* [SHNUM];
+		
+		for(int i = 0; i < SHNUM; i++)
+		{
+			int sharedID = 0;
+			key_t sharedKey = 7890 + i;
+
+			//create shared memory
+			if((sharedID = shmget(sharedKey, SHSIZE, IPC_CREAT | 0666)) < 0)
+				cout << "Error created shared memory" << endl;
+				
+			//Attach to the memory
+			if((shMem[i] = (int*)shmat(sharedID, 0, 0)) == (int*)-1)
+				cout << "Error attaching to shared memory" << endl;
+				
+			sharedID =  __sync_bool_compare_and_swap(&sharedID, 1, 7);
+		}
 	}
 	
 
@@ -98,6 +141,10 @@ class HTTP_Server
 		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 		
 		rootDir = "WWW/";
+		
+#ifdef SHMEM
+		setupSharedMem();
+#endif
 	}
 
 	/**
