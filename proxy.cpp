@@ -26,9 +26,6 @@ class HTTP_Proxy : public virtual HTTP_Server
 		: HTTP_Server(recvPort, acceptQueueSize)
 	{
 		remoteServerPort = remotePort;
-#ifdef SHMEM
-		setupSharedMem();
-#endif
 	}
 	
 	virtual void parseHTTPRequest(string fileName, int socketNum)

@@ -93,9 +93,16 @@ class HTTP_Server
 	{
 		cout << errorText << endl;
 	}
+	
+	/**
+	 * @brief Flags that represents the current state of a shared memory slot
+	 */
+	enum {FREE, LOCKED, MODIFIED, READ} SharedState;
 
 	/**
-	* @brief Creates and connects to shared memory
+	* @brief Creates and connects to shared memory, and if this is the first process to attach, initialize the state and mutex
+	* 
+	* @note 4 Byte state, Shared Mutex, 4 Byte data length, data
 	*/
 	void setupSharedMem()
 	{
@@ -110,12 +117,24 @@ class HTTP_Server
 			//create shared memory
 			if((sharedID = shmget(sharedKey, SHSIZE, IPC_CREAT | 0666)) < 0)
 				cout << "Error created shared memory" << endl;
+			
+			//Get shared memory info
+			shmid_ds stats;	
+			if(shmctl(sharedID, IPC_STAT, &stats) < 0)
+				cout << "Error in shared memory Stat" << endl;
 				
 			//Attach to the memory
 			if((shMem[i] = (int*)shmat(sharedID, 0, 0)) == (int*)-1)
-				cout << "Error attaching to shared memory" << endl;
+				cout << "Error attaching to shared memory" << endl;	
 				
-			sharedID =  __sync_bool_compare_and_swap(&sharedID, 1, 7);
+			//If this is the first to attach, initialize the mutex and state
+			if(stats.shm_nattch == 0)
+			{
+				//Init state
+				*(shMem[i]) = FREE;
+				//Create the shared mutex
+				pthread_mutex_init((pthread_mutex_t*)shMem[i] + 1, NULL);
+			}		
 		}
 	}
 	
