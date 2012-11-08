@@ -59,6 +59,12 @@ class HTTP_Server
 	///Pthreads condition that will be 'signaled' when a client is accepted
 	pthread_cond_t acceptCondition;
 	
+	///Pthreads condition that will broadcast when a thread finishes using a section of shared memory
+	pthread_cond_t bufferCondition;
+	
+	///The mutex that will lock to change information about the shared memory queue
+	pthread_mutex_t bufferLock;
+	
 	///Controls whether the server is running or not
 	bool running;
 	
@@ -79,6 +85,9 @@ class HTTP_Server
 
 	///The current tail of the shared memory queue
 	unsigned int queueTail;
+	
+	///The number of threads currently using shared memory
+	int shMemThreads;
 
 	///Queue for getting a shared memory slot
 	int* sharedQueue;
@@ -138,6 +147,29 @@ class HTTP_Server
 		}
 	}
 	
+	/**
+	 * @brief Gains ownership of a section of shared memory
+	 * @return The index of the shared memory section in shMem
+	 */
+	int acquireSharedMem()
+	{
+		pthread_mutex_lock(&bufferLock);
+		while(shMemThreads >= SHNUM || sharedQueue[queueHead] != (unsigned int)pthread_self())
+			pthread_cond_wait(&bufferCondition, &bufferLock);
+			
+		queueHead = (queueHead + 1) % SHNUM;
+		shMemThreads++;
+		
+		pthread_mutex_unlock(&bufferLock);
+		
+		//Find a free shmem segment
+		
+		pthread_mutex_lock(&bufferLock);
+		shMemThreads--;
+		pthread_cond_broadcast(&bufferCondition);
+		pthread_mutex_unlock(&bufferLock);
+	}
+	
 
 	public:
 
@@ -156,10 +188,18 @@ class HTTP_Server
 		pthread_mutex_init(&acceptLock, NULL);
 		pthread_cond_init(&acceptCondition, NULL);
 		
+		pthread_mutex_init(&bufferLock, NULL);
+		pthread_cond_init(&bufferCondition, NULL);
+		
 		pthread_attr_init(&attr);
 		pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 		
 		rootDir = "WWW/";
+		
+		queueTail = 0;
+		queueHead = 0;
+		
+		shMemThreads = 0;
 		
 #ifdef SHMEM
 		setupSharedMem();
