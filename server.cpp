@@ -23,7 +23,9 @@
 
 #define SHMEM
 #define SHNUM 6 //The number of shared memory segments
-#define SHSIZE 1024 //The size of each segment
+#define SHSIZE 4096 //The size of each segment
+
+#define SENDSIZE 2048//The bytes read from the file during each iteration
 
 using namespace std;
 
@@ -106,7 +108,10 @@ class HTTP_Server
 	/**
 	 * @brief Flags that represents the current state of a shared memory slot
 	 */
-	enum {FREE, LOCKED, MODIFIED, READ} SharedState;
+	enum {FREE, LOCKED, MODIFIED, READ};
+	
+	///Flags that represent the different return methods for data going to the client
+	typedef enum {GET, SHBUFF} DataMethod;
 
 	/**
 	* @brief Creates and connects to shared memory, and if this is the first process to attach, initialize the state and mutex
@@ -150,10 +155,17 @@ class HTTP_Server
 	/**
 	 * @brief Gains ownership of a section of shared memory
 	 * @return The index of the shared memory section in shMem
+	 * 
+	 * @note Blocks until shared memory can be acquired
 	 */
 	int acquireSharedMem()
 	{
+		int retn;
+		
 		pthread_mutex_lock(&bufferLock);
+		sharedQueue[queueTail] = (unsigned int)pthread_self();
+		queueTail = (queueTail + 1) % SHNUM;
+		
 		while(shMemThreads >= SHNUM || sharedQueue[queueHead] != (unsigned int)pthread_self())
 			pthread_cond_wait(&bufferCondition, &bufferLock);
 			
@@ -163,13 +175,45 @@ class HTTP_Server
 		pthread_mutex_unlock(&bufferLock);
 		
 		//Find a free shmem segment
+		for(int i = 0; i < SHNUM; i++)
+			if(*(shMem[i]) == FREE)
+			{
+				retn = i;
+				*(shMem[i]) = LOCKED;
+				break;
+			}
 		
 		pthread_mutex_lock(&bufferLock);
+		pthread_cond_broadcast(&bufferCondition);
+		pthread_mutex_unlock(&bufferLock);
+		
+		return retn;
+	}
+	
+	void releaseSharedMem(int shId)
+	{
+		pthread_mutex_lock(&bufferLock);
+		
+		*(shMem[shId]) = FREE;
+		
 		shMemThreads--;
+		
 		pthread_cond_broadcast(&bufferCondition);
 		pthread_mutex_unlock(&bufferLock);
 	}
 	
+	/**
+	 * @brief Detaches from shared memory
+	 */
+	void cleanupSharedMem()
+	{
+		for(int i = 0; i < SHNUM; i++)
+			shmdt(shMem[i]);
+		
+		delete sharedQueue;
+		delete shMem;
+	}
+
 
 	public:
 
@@ -413,9 +457,12 @@ class HTTP_Server
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
 			
-			//cout << "Method: " << method << endl << "File: " << file << endl;
+			cout << "Method: " << method << endl << "File: " << file << endl;
 			
-			parseHTTPRequest(file, data->socketNum);
+			DataMethod methodFlag = GET;
+			if(method.compare("SHBUFF") == 0) methodFlag = SHBUFF;
+			
+			parseHTTPRequest(file, data->socketNum, methodFlag);
 			//cout << fileContents << endl;
 			
 			close(data->socketNum);
@@ -425,13 +472,45 @@ class HTTP_Server
 	}
 	
 	/**
+	 * @brief Sends data to the client using the method passed in
+	 */
+	int sendData(int retnId, const char* data, int len, DataMethod method)
+	{
+		//Use the shared memory buffer
+		if(method == SHBUFF)
+		{
+			while(*(shMem[retnId]) == MODIFIED);//Spin while the client reads the data
+			
+			pthread_mutex_lock((pthread_mutex_t*)(shMem[retnId] + 1));
+			
+			char* mutexEnd = (char*)(shMem[retnId] + 1) + sizeof(pthread_mutex_t);
+			char* dataStart = mutexEnd + sizeof(int);
+			
+			bcopy(data, dataStart, len);
+			bcopy(&len, mutexEnd, sizeof(int));
+			
+			*(shMem[retnId]) = MODIFIED;
+			
+			pthread_mutex_unlock((pthread_mutex_t*)(shMem[retnId] + 1));
+			
+			return 0;
+		}
+		//Use sockets
+		else
+		{
+			return write(retnId, data, len);
+		}
+	}
+	
+	/**
 	 * @brief Retrieves the file and returns the string to send back to the client
 	 * 
 	 * @param fileName The name of the file to be retrieved
 	 * @param socketNum The socket number of the client that requested this file
+	 * @param The method that will be used to send the data back
 	 * 
 	 */
-	virtual void parseHTTPRequest(string fileName, int socketNum)
+	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method)
 	{
 		//Prepend the document root
 		fileName = rootDir + fileName;
@@ -448,6 +527,15 @@ class HTTP_Server
 		timeInfo = gmtime(&rawtime);
 		timeStr = asctime(timeInfo);
 		
+		//send the client the shared memory ID
+		if(method == SHBUFF)
+		{
+			int shMemID = acquireSharedMem();
+			write(socketNum, &shMemID, sizeof(int));
+			
+			socketNum = shMemID;
+		}
+		
 		//Make sure they stay withing 
 		if(fileName.find("..") != string::npos)
 		{
@@ -455,7 +543,7 @@ class HTTP_Server
 			body = "403 Forbidden";
 			
 			string combined = header + "\n\n" + body;
-			write(socketNum, combined.c_str(), strlen(combined.c_str()));
+			sendData(socketNum, combined.c_str(), strlen(combined.c_str()), method);
 		}
 		//Make sure the file opened
 		else if(inFile.is_open())
@@ -463,17 +551,17 @@ class HTTP_Server
 			header = "HTTP/1.0 200 OK\n\n";
 			
 			//Write the header first
-			write(socketNum, header.c_str(), strlen(header.c_str()));
+			sendData(socketNum, header.c_str(), strlen(header.c_str()), method);
 			
-			char strBuf[1024];
+			char strBuf[SENDSIZE];
 			inFile.seekg(0, ios::end);
 			int length = inFile.tellg();
 			inFile.seekg(0, ios::beg);
 			while(length > 0)
 			{
-				inFile.read(strBuf, min(1024, length));
-				int err = write(socketNum, strBuf, min(1024, length));
-				length -= 1024;
+				inFile.read(strBuf, min(SENDSIZE, length));
+				int err = sendData(socketNum, strBuf, min(SENDSIZE, length), method);
+				length -= SENDSIZE;
 			}
 			inFile.close();
 		}
@@ -483,13 +571,22 @@ class HTTP_Server
 			body = "Page not found";
 			
 			string combined = header + "\n\n" + body;
-			write(socketNum, combined.c_str(), strlen(combined.c_str()));
+			sendData(socketNum, combined.c_str(), strlen(combined.c_str()), method);
 			
 			//I need to make sure this doesn't happen in benchmarking
 			cout << "404!" << endl;
 		}
 		
-		//Combine the HTTP components
-		retn = header + "\n" + timeStr + "\n" + body;
+		//Release the shared memory
+		if(method == SHBUFF)
+		{
+			sendData(socketNum, NULL, 0, method);
+			while(*(shMem[socketNum]) != READ);//Spin while the client reads the final segment
+			
+			//Acquire the lock to ensure that the client is done
+			pthread_mutex_lock((pthread_mutex_t*)(shMem[socketNum] + 1));
+			pthread_mutex_unlock((pthread_mutex_t*)(shMem[socketNum] + 1));
+			releaseSharedMem(socketNum);
+		}
 	}
 };
