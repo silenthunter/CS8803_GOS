@@ -15,6 +15,7 @@
 #include "server.cpp"
 #include "client.cpp"
 
+namespace{
 class HTTP_Proxy : public virtual HTTP_Server
 {
 	private:
@@ -61,7 +62,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 		err = read(sockfd, buf, sizeof(buf));
 		int shIdx = 0;
 		bcopy(buf, &shIdx, sizeof(int));
-		cout << "ShMem: " << shIdx << endl;
+		//cout << "ShMem: " << shIdx << endl;
 #endif
 		
 		do
@@ -108,3 +109,4 @@ class HTTP_Proxy : public virtual HTTP_Server
 		
 	}
 };
+}

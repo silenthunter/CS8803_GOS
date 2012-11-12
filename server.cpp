@@ -34,6 +34,9 @@ struct requestData
 	int socketNum;
 };
 
+inline void signal_callback_handler(int signum);
+
+namespace{
 /**
  * @brief A multi-threaded server that parses basic HTTP commands
  */
@@ -225,6 +228,12 @@ class HTTP_Server
 		pthread_mutex_unlock(&bufferLock);
 	}
 	
+	public:
+	
+	///An instance of the running server
+	///@note Only one server can be running per process
+	static HTTP_Server* srvInstance;
+	
 	/**
 	 * @brief Detaches from shared memory
 	 */
@@ -236,9 +245,6 @@ class HTTP_Server
 		delete sharedQueue;
 		delete shMem;
 	}
-
-
-	public:
 
 	/**
 	 * @brief Instantiates the HTTP Server object
@@ -268,8 +274,12 @@ class HTTP_Server
 		
 		shMemThreads = 0;
 		
+		srvInstance = this;
+		
 #ifdef SHMEM
 		setupSharedMem();
+		
+		signal(SIGINT, signal_callback_handler);
 #endif
 	}
 
@@ -625,3 +635,12 @@ class HTTP_Server
 		}
 	}
 };
+}
+
+HTTP_Server* HTTP_Server::srvInstance;
+
+void signal_callback_handler(int signum)
+{
+	HTTP_Server::srvInstance->cleanupSharedMem();
+	exit(0);
+}
