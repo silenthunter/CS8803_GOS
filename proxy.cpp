@@ -59,17 +59,26 @@ class HTTP_Proxy : public virtual HTTP_Server
 #ifdef SHMEM
 		//Get the shared memory index
 		err = read(sockfd, buf, sizeof(buf));
-		int shIdx = (int)buf[0];
+		int shIdx = 0;
+		bcopy(buf, &shIdx, sizeof(int));
+		cout << "ShMem: " << shIdx << endl;
 #endif
 		
 		do
 		{
 #ifdef SHMEM
-			while(*(shMem[shIdx]) != MODIFIED);//Spin while the server is writing
-			
+			//cout << "before" << endl;
 			pthread_mutex_lock((pthread_mutex_t*)(shMem[shIdx] + 1));
 			
-			char* mutexEnd = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t);
+			char* cond = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t);
+			
+			while(*(shMem[shIdx]) != MODIFIED)
+			{
+				//cout << "waiting" << endl;
+				pthread_cond_wait((pthread_cond_t*) cond, (pthread_mutex_t*)(shMem[shIdx] + 1));
+			}
+			
+			char* mutexEnd = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t);
 			char* dataStart = mutexEnd + sizeof(int);
 			
 			bcopy(mutexEnd, &err, sizeof(int));
@@ -78,7 +87,13 @@ class HTTP_Proxy : public virtual HTTP_Server
 			//Mark the buffer as being read
 			*(shMem[shIdx]) = READ;
 			
+			//cout << "read" << endl;
+			
+			pthread_cond_signal((pthread_cond_t*)cond);
+			
 			pthread_mutex_unlock((pthread_mutex_t*)(shMem[shIdx] + 1));
+			
+			//cout << "after" << endl;
 #else
 			err = read(sockfd, buf, sizeof(buf));
 #endif
@@ -86,7 +101,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 			
 		}while(err > 0);
 		
-		cout << contents << endl;
+		//cout << contents << endl;
 		
 		//Now write the contents back to the client
 		write(socketNum, contents.c_str(), strlen(contents.c_str()));

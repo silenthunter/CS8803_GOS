@@ -97,6 +97,12 @@ class HTTP_Server
 	///An array of pointers to the sections of shared memory
 	int** shMem;
 	
+	///Attributes for the condition variable for shared memory
+	pthread_condattr_t shMemCondAttr;
+	
+	///Attributes for the mutex for shared memory
+	pthread_mutexattr_t shMemMutexAttr;
+	
 	//Boolean that tracks the running state of the server
 	//static bool serverRunning;
 	
@@ -144,10 +150,27 @@ class HTTP_Server
 			//If this is the first to attach, initialize the mutex and state
 			if(stats.shm_nattch == 0)
 			{
+
+				//Initialize the attributes
+				if(i == 0)
+				{
+					pthread_mutexattr_init(&shMemMutexAttr);
+					pthread_condattr_init(&shMemCondAttr);
+					
+					pthread_mutexattr_setpshared(&shMemMutexAttr, PTHREAD_PROCESS_SHARED);
+					pthread_condattr_setpshared(&shMemCondAttr, PTHREAD_PROCESS_SHARED);
+				}
+					
 				//Init state
 				*(shMem[i]) = FREE;
+				
 				//Create the shared mutex
-				pthread_mutex_init((pthread_mutex_t*)shMem[i] + 1, NULL);
+				pthread_mutex_init((pthread_mutex_t*)(shMem[i] + 1), &shMemMutexAttr);
+				
+				//Create a shared condition
+				char* mutexEnd = (char*)(shMem[i] + 1) + sizeof(pthread_mutex_t);
+				pthread_cond_init((pthread_cond_t*)mutexEnd, &shMemCondAttr);
+				
 			}		
 		}
 	}
@@ -478,12 +501,19 @@ class HTTP_Server
 	{
 		//Use the shared memory buffer
 		if(method == SHBUFF)
-		{
-			while(*(shMem[retnId]) == MODIFIED);//Spin while the client reads the data
-			
+		{		
+			//cout << "Before" << endl;	
 			pthread_mutex_lock((pthread_mutex_t*)(shMem[retnId] + 1));
 			
-			char* mutexEnd = (char*)(shMem[retnId] + 1) + sizeof(pthread_mutex_t);
+			char* cond = (char*)(shMem[retnId] + 1) + sizeof(pthread_mutex_t);
+			
+			while(*(shMem[retnId]) == MODIFIED)
+			{
+				//cout << "waiting" << endl;
+				pthread_cond_wait((pthread_cond_t*) cond, (pthread_mutex_t*)(shMem[retnId] + 1));
+			}
+			
+			char* mutexEnd = (char*)(shMem[retnId] + 1) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t);
 			char* dataStart = mutexEnd + sizeof(int);
 			
 			bcopy(data, dataStart, len);
@@ -491,7 +521,12 @@ class HTTP_Server
 			
 			*(shMem[retnId]) = MODIFIED;
 			
+			//cout << "data!" << endl;
+			
+			pthread_cond_signal((pthread_cond_t*)cond);
 			pthread_mutex_unlock((pthread_mutex_t*)(shMem[retnId] + 1));
+			
+			//cout << "after" << endl;
 			
 			return 0;
 		}
