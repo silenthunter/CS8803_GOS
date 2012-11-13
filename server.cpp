@@ -101,6 +101,9 @@ class HTTP_Server
 	///An array of pointers to the sections of shared memory
 	int** shMem;
 	
+	///An array of ID's for shared memory segments
+	int* shMemID;
+	
 	///The id of the shared memory segment that contains the server ports being used
 	int serverListID;
 	
@@ -138,6 +141,7 @@ class HTTP_Server
 	{
 		sharedQueue = new int[workerThreadCount];
 		shMem = new int* [SHNUM];
+		shMemID = new int[SHNUM];
 		
 		for(int i = 0; i < SHNUM; i++)
 		{
@@ -147,6 +151,9 @@ class HTTP_Server
 			//create shared memory
 			if((sharedID = shmget(sharedKey, SHSIZE, IPC_CREAT | 0666)) < 0)
 				cout << "Error created shared memory" << endl;
+			
+			//Store the ID	
+			shMemID[i] = sharedID;
 			
 			//Get shared memory info
 			shmid_ds stats;	
@@ -255,6 +262,7 @@ class HTTP_Server
 	
 	///An instance of the running server
 	///@note Only one server can be running per process
+	///@note Not thread safe
 	static HTTP_Server* srvInstance;
 	
 	/**
@@ -263,10 +271,24 @@ class HTTP_Server
 	void cleanupSharedMem()
 	{
 		for(int i = 0; i < SHNUM; i++)
+		{
 			shmdt(shMem[i]);
+			
+			//Get shared memory info
+			shmid_ds stats;	
+			if(shmctl(shMemID[i], IPC_STAT, &stats) < 0)
+				cout << "Error in shared memory Stat" << endl;
+				
+			//Mark for removal if no other processes are attached (This should be required behavior for IPC_RMID anyway)
+			if(stats.shm_nattch == 0)
+			{
+				shmctl(shMemID[i], IPC_RMID, &stats);
+			}
+		}
 		
 		delete sharedQueue;
 		delete shMem;
+		delete shMemID;
 		
 		//unregister the server in shared memory
 		for(int i = 0; i < MAXSERVERS; i++)
@@ -276,6 +298,17 @@ class HTTP_Server
 			}
 			
 		shmdt(serverList);
+		
+		//Get shared memory info
+		shmid_ds stats;	
+		if(shmctl(serverListID, IPC_STAT, &stats) < 0)
+			cout << "Error in shared memory Stat" << endl;
+			
+		//Mark for removal if no other processes are attached (This should be required behavior for IPC_RMID anyway)
+		if(stats.shm_nattch == 0)
+		{
+			shmctl(serverListID, IPC_RMID, &stats);
+		}
 	}
 
 	/**
