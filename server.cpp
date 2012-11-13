@@ -621,8 +621,8 @@ class HTTP_Server
 			socketNum = shMemID;
 		}
 		
-		//Make sure they stay withing 
-		if(fileName.find("..") != string::npos)
+		//Make sure they stay within the WWW directory
+		if(fileName.find("..") != string::npos || fileName.find("~") != string::npos)
 		{
 			header = "HTTP/1.0 403 Forbidden";
 			body = "403 Forbidden";
