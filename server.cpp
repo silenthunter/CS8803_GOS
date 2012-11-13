@@ -22,10 +22,11 @@
 #include <sys/ipc.h>
 
 #define SHMEM
-#define SHNUM 6 //The number of shared memory segments
+#define SHNUM 5 //The number of shared memory segments
 #define SHSIZE 4096 //The size of each segment
 
 #define SENDSIZE 2048//The bytes read from the file during each iteration
+#define MAXSERVERS 50
 
 using namespace std;
 
@@ -99,6 +100,12 @@ class HTTP_Server
 	
 	///An array of pointers to the sections of shared memory
 	int** shMem;
+	
+	///The id of the shared memory segment that contains the server ports being used
+	int serverListID;
+	
+	///A segment of shared memory that keeps a list of the ports that servers bind to
+	int* serverList;
 	
 	///Attributes for the condition variable for shared memory
 	pthread_condattr_t shMemCondAttr;
@@ -176,6 +183,22 @@ class HTTP_Server
 				
 			}		
 		}
+		
+		//Create the section of shared memory that will hold a list of server ports
+		if((serverListID = shmget(7890 - 1, MAXSERVERS * sizeof(int), IPC_CREAT | 0666)) < 0)
+			cout << "Error created shared memory" << endl;
+		
+		//Get shared memory info
+		shmid_ds stats;	
+		if(shmctl(serverListID, IPC_STAT, &stats) < 0)
+			cout << "Error in shared memory Stat" << endl;
+			
+		//Attach to the memory
+		if((serverList = (int*)shmat(serverListID, 0, 0)) == (int*)-1)
+			cout << "Error attaching to shared memory" << endl;	
+			
+		if(stats.shm_nattch == 0)
+			bzero(serverList, MAXSERVERS * sizeof(int));
 	}
 	
 	/**
@@ -244,6 +267,15 @@ class HTTP_Server
 		
 		delete sharedQueue;
 		delete shMem;
+		
+		//unregister the server in shared memory
+		for(int i = 0; i < MAXSERVERS; i++)
+			if(serverList[i] == port)
+			{
+				serverList[i] = 0;
+			}
+			
+		shmdt(serverList);
 	}
 
 	/**
@@ -275,12 +307,6 @@ class HTTP_Server
 		shMemThreads = 0;
 		
 		srvInstance = this;
-		
-#ifdef SHMEM
-		setupSharedMem();
-		
-		signal(SIGINT, signal_callback_handler);
-#endif
 	}
 
 	/**
@@ -298,6 +324,20 @@ class HTTP_Server
 			workerThreads[i] = pthread_t();
 			pthread_create(&workerThreads[i], &attr, HTTP_Server::launchWorkerThreadTask, this);
 		}
+		
+#ifdef SHMEM
+		setupSharedMem();
+		
+		//register the server in shared memory
+		for(int i = 0; i < MAXSERVERS; i++)
+			if(serverList[i] == 0)
+			{
+				serverList[i] = port;
+				break;
+			}
+		
+		signal(SIGINT, signal_callback_handler);
+#endif
 	}
 	
 	/**

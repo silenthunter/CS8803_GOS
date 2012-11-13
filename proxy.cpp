@@ -53,6 +53,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 		
 		int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
 		
+		bool onLocal = false;
 		bool useShared = false;
 		
 		//See if the http server is on the local machine
@@ -61,7 +62,18 @@ class HTTP_Proxy : public virtual HTTP_Server
 		{
 			for(int i = 0; server->h_addr_list[i] != NULL; i++)
 				if(memcmp(server->h_addr_list[i], ifa->ifa_addr->sa_data, 14))
+					onLocal = true;
+		}
+		
+		//Determine if the local server is ours
+		if(onLocal)
+		{
+			//unregister the server in shared memory
+			for(int i = 0; i < MAXSERVERS; i++)
+				if(serverList[i] == remoteServerPort)
+				{
 					useShared = true;
+				}
 		}
 			
 #ifdef SHMEM
