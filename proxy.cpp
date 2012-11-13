@@ -76,11 +76,14 @@ class HTTP_Proxy : public virtual HTTP_Server
 				}
 		}
 			
+		
+		string req = "";
 #ifdef SHMEM
-		string req = "SHBUFF " + fileName + " HTTP/1.0\r\n\r\n";
-#else
-		string req = "GET " + fileName + " HTTP/1.0\r\n\r\n";
+		if(useShared)
+			req = "SHBUFF " + fileName + " HTTP/1.0\r\n\r\n";
+		else
 #endif
+		req = "GET " + fileName + " HTTP/1.0\r\n\r\n";
 		
 		int err = write(sockfd, req.c_str(), strlen(req.c_str()));
 		
@@ -89,46 +92,53 @@ class HTTP_Proxy : public virtual HTTP_Server
 		string contents = "";
 		
 #ifdef SHMEM
-		//Get the shared memory index
-		err = read(sockfd, buf, sizeof(buf));
 		int shIdx = 0;
-		bcopy(buf, &shIdx, sizeof(int));
-		//cout << "ShMem: " << shIdx << endl;
+		if(useShared)
+		{
+			//Get the shared memory index
+			err = read(sockfd, buf, sizeof(buf));
+			bcopy(buf, &shIdx, sizeof(int));
+			//cout << "ShMem: " << shIdx << endl;
+		}
 #endif
 		
 		do
 		{
 #ifdef SHMEM
-			//cout << "before" << endl;
-			pthread_mutex_lock((pthread_mutex_t*)(shMem[shIdx] + 1));
-			
-			char* cond = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t);
-			
-			while(*(shMem[shIdx]) != MODIFIED)
+			if(useShared)
 			{
-				//cout << "waiting" << endl;
-				pthread_cond_wait((pthread_cond_t*) cond, (pthread_mutex_t*)(shMem[shIdx] + 1));
+				//cout << "before" << endl;
+				pthread_mutex_lock((pthread_mutex_t*)(shMem[shIdx] + 1));
+				
+				char* cond = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t);
+				
+				while(*(shMem[shIdx]) != MODIFIED)
+				{
+					//cout << "waiting" << endl;
+					pthread_cond_wait((pthread_cond_t*) cond, (pthread_mutex_t*)(shMem[shIdx] + 1));
+				}
+				
+				char* mutexEnd = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t);
+				char* dataStart = mutexEnd + sizeof(int);
+				
+				bcopy(mutexEnd, &err, sizeof(int));
+				bcopy(dataStart, buf, err);
+				
+				//Mark the buffer as being read
+				*(shMem[shIdx]) = READ;
+				
+				//cout << "read" << endl;
+				
+				pthread_cond_signal((pthread_cond_t*)cond);
+				
+				pthread_mutex_unlock((pthread_mutex_t*)(shMem[shIdx] + 1));
+				
+				//cout << "after" << endl;
 			}
-			
-			char* mutexEnd = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t);
-			char* dataStart = mutexEnd + sizeof(int);
-			
-			bcopy(mutexEnd, &err, sizeof(int));
-			bcopy(dataStart, buf, err);
-			
-			//Mark the buffer as being read
-			*(shMem[shIdx]) = READ;
-			
-			//cout << "read" << endl;
-			
-			pthread_cond_signal((pthread_cond_t*)cond);
-			
-			pthread_mutex_unlock((pthread_mutex_t*)(shMem[shIdx] + 1));
-			
-			//cout << "after" << endl;
-#else
-			err = read(sockfd, buf, sizeof(buf));
+			else
 #endif
+			err = read(sockfd, buf, sizeof(buf));
+			
 			if(err > 0) contents += string(buf, err);
 			
 		}while(err > 0);
