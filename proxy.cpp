@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <iostream>
 #include <string.h>
 #include <pthread.h>
@@ -34,6 +35,13 @@ class HTTP_Proxy : public virtual HTTP_Server
 		struct sockaddr_in serv_addr;
 		hostent *server = gethostbyname("127.0.0.1");
 		
+	    struct ifaddrs * ifAddrStruct=NULL;
+		struct ifaddrs * ifa=NULL;
+		void * tmpAddrPtr=NULL;
+
+		//Get a linked list of all local addresses
+		getifaddrs(&ifAddrStruct);
+		
 		bzero((char *) &serv_addr, sizeof(serv_addr));
 		serv_addr.sin_family = AF_INET;
 		bcopy((char *)server->h_addr,
@@ -44,6 +52,17 @@ class HTTP_Proxy : public virtual HTTP_Server
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		
 		int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+		
+		bool useShared = false;
+		
+		//See if the http server is on the local machine
+		//http://stackoverflow.com/questions/212528/linux-c-get-the-ip-address-of-local-computer
+		for(ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next)
+		{
+			for(int i = 0; server->h_addr_list[i] != NULL; i++)
+				if(memcmp(server->h_addr_list[i], ifa->ifa_addr->sa_data, 14))
+					useShared = true;
+		}
 			
 #ifdef SHMEM
 		string req = "SHBUFF " + fileName + " HTTP/1.0\r\n\r\n";
