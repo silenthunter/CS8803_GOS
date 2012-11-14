@@ -563,13 +563,56 @@ class HTTP_Server
 			string method = input.substr(0, idx1);
 			string file = input.substr(idx1 + 1, idx2 - idx1 - 1);
 			
-			cout << "Method: " << method << endl << "File: " << file << endl;
+			bool hasHostField = false;
+			//Find the host
+			idx1 = input.find("Host: ");
+			if(idx1 > 0)
+			{
+				idx1 += 6;//Offset by the host string
+				hasHostField = true;
+			}
+			else//Also search for without a space
+			{
+				idx1 = input.find("Host:");
+				if(idx1 > 0)
+				{
+					idx1 += 5;//Offset by the host string
+					hasHostField = true;
+				}
+			}
+			
+			//Get the host string
+			string host = "";
+			string hostString = "";
+			int altPort = 0;
+			if(idx1 > 0)
+			{
+				idx2 = input.find("\r\n", idx1 + 1);
+				hostString = input.substr(idx1, idx2 - idx1);
+				host = hostString;
+				
+				//Check for attached port
+				int prtIdx = hostString.find(':');
+				if(prtIdx > 0)
+				{
+					altPort = atoi(hostString.substr(prtIdx + 1).c_str());
+					host = hostString.substr(0, prtIdx);
+				}
+			}
+			
+			//Parse the host address out of the GET
+			if(hasHostField)
+			{
+				idx1 = file.find(hostString);
+				file = file.substr(idx1 + hostString.length());
+			}
+			
+			cout << "Method: " << method << endl << "File: " << file << endl << "Host: " << host << endl << "Port: " << altPort << endl;
 			
 			DataMethod methodFlag = GET;
 			if(method.compare("SHBUFF") == 0) methodFlag = SHBUFF;
 			
-			parseHTTPRequest(file, data->socketNum, methodFlag);
-			//cout << fileContents << endl;
+			parseHTTPRequest(file, data->socketNum, methodFlag, host, altPort);
 			
 			close(data->socketNum);
 			
@@ -625,10 +668,12 @@ class HTTP_Server
 	 * 
 	 * @param fileName The name of the file to be retrieved
 	 * @param socketNum The socket number of the client that requested this file
-	 * @param The method that will be used to send the data back
+	 * @param method The method that will be used to send the data back
+	 * @param host The contents of the HTTP header's Host field
+	 * @param altPort The port to use in the event of a remote server
 	 * 
 	 */
-	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method)
+	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method, string host, int altPort)
 	{
 		//Prepend the document root
 		fileName = rootDir + fileName;

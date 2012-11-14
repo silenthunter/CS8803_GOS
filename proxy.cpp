@@ -30,14 +30,19 @@ class HTTP_Proxy : public virtual HTTP_Server
 		remoteServerPort = remotePort;
 	}
 	
-	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method)
+	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method, string host, int altPort)
 	{		
 		struct sockaddr_in serv_addr;
-		hostent *server = gethostbyname("127.0.0.1");
+		hostent *server = host.length() == 0 ? gethostbyname("127.0.0.1") : gethostbyname(host.c_str());
 		
 	    struct ifaddrs * ifAddrStruct=NULL;
 		struct ifaddrs * ifa=NULL;
 		void * tmpAddrPtr=NULL;
+		
+		//Determine the port to use
+		int destPort = altPort ? altPort : 80;
+		
+		if(host.length() == 0) destPort = remoteServerPort;
 
 		//Get a linked list of all local addresses
 		getifaddrs(&ifAddrStruct);
@@ -47,7 +52,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 		bcopy((char *)server->h_addr,
 		  (char *)&serv_addr.sin_addr.s_addr,
 		  server->h_length);
-		serv_addr.sin_port = htons(remoteServerPort);
+		serv_addr.sin_port = htons(destPort);
 		
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 		
@@ -70,7 +75,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 		{
 			//unregister the server in shared memory
 			for(int i = 0; i < MAXSERVERS; i++)
-				if(serverList[i] == remoteServerPort)
+				if(serverList[i] == destPort)
 				{
 					useShared = true;
 				}
