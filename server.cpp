@@ -1,3 +1,7 @@
+//Last minute hack...
+#ifndef HTTP_SERVER
+#define HTTP_SERVER
+
 /**
  * @file server.cpp
  * @author Gavin Gresham <gavin.gresham@cs.gatech.edu>
@@ -607,7 +611,7 @@ class HTTP_Server
 				file = file.substr(idx1 + hostString.length());
 			}
 			
-			cout << "Method: " << method << endl << "File: " << file << endl << "Host: " << host << endl << "Port: " << altPort << endl;
+			//cout << "Method: " << method << endl << "File: " << file << endl << "Host: " << host << endl << "Port: " << altPort << endl;
 			
 			DataMethod methodFlag = GET;
 			if(method.compare("SHBUFF") == 0) methodFlag = SHBUFF;
@@ -762,3 +766,4 @@ void signal_callback_handler(int signum)
 	HTTP_Server::srvInstance->cleanupSharedMem();
 	exit(0);
 }
+#endif

@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <ifaddrs.h>
 #include <iostream>
 #include <string.h>
@@ -14,7 +15,7 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include "server.cpp"
-#include "client.cpp"
+//#include "client.cpp"
 
 namespace{
 class HTTP_Proxy : public virtual HTTP_Server
