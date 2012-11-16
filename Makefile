@@ -17,4 +17,4 @@ analyzeSocket:
 	g++ -g -o testSuiteNoShm testSuite_noshm.cpp server.cpp client.cpp -lpthread 
 
 clean:
-	rm -f *.out UnitTests http_server http_client http_proxy *.o testSuite
+	rm -f *.out UnitTests http_server http_client http_proxy *.o testSuite http_proxy_noShm

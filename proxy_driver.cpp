@@ -2,9 +2,10 @@
 
 int main(int argc, char* argv[])
 {
-	HTTP_Proxy p(8000, 5, 8001);
-	p.setupThreadPool(5);
+	HTTP_Proxy p(atoi(argv[1]), atoi(argv[3]), atoi(argv[2]));
+	p.setupThreadPool(atoi(argv[4]));
 	p.beginAcceptLoop();
 	
-	sleep(500);
+	while(1)
+		sleep(10);
 }
