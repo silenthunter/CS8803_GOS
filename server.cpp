@@ -314,6 +314,11 @@ class HTTP_Server
 			shmctl(serverListID, IPC_RMID, &stats);
 		}
 	}
+	
+	~HTTP_Server()
+	{
+		cleanupSharedMem();
+	}
 
 	/**
 	 * @brief Instantiates the HTTP Server object
@@ -457,10 +462,10 @@ class HTTP_Server
 		//Loop and accept connections
 		while(thisSrv->running)
 		{
-			struct sockaddr_in *client_addr = new sockaddr_in;
-			bzero(&client_addr, sizeof(client_addr));
-			socklen_t clientlen = sizeof(*client_addr);
-			int newsockfd = accept(sockfd, (struct sockaddr *) client_addr, &clientlen);
+			struct sockaddr_in client_addr;
+			//bzero(&&client_addr, sizeof(&client_addr));
+			socklen_t clientlen = sizeof(client_addr);
+			int newsockfd = accept(sockfd, (struct sockaddr *) &client_addr, &clientlen);
 			
 			//Should skip the interrupted accept
 			if(newsockfd <= 0) continue;
@@ -486,6 +491,7 @@ class HTTP_Server
 			}
 			
 			pthread_mutex_unlock(&thisSrv->acceptLock);
+
 		}
 		
 		//pthread_exit(0);
@@ -741,7 +747,7 @@ class HTTP_Server
 			sendData(socketNum, combined.c_str(), strlen(combined.c_str()), method);
 			
 			//I need to make sure this doesn't happen in benchmarking
-			cout << "404!" << endl;
+			cout << "404! " << fileName << endl;
 		}
 		
 		//Release the shared memory

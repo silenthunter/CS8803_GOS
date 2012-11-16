@@ -71,6 +71,8 @@ class HTTP_Proxy : public virtual HTTP_Server
 					onLocal = true;
 		}
 		
+		delete ifAddrStruct;
+		
 		//Determine if the local server is ours
 		if(onLocal)
 		{
@@ -78,7 +80,9 @@ class HTTP_Proxy : public virtual HTTP_Server
 			for(int i = 0; i < MAXSERVERS; i++)
 				if(serverList[i] == destPort)
 				{
+					#ifdef USESHARED
 					useShared = true;
+					#endif
 				}
 		}
 			
@@ -105,6 +109,8 @@ class HTTP_Proxy : public virtual HTTP_Server
 			err = read(sockfd, buf, sizeof(buf));
 			bcopy(buf, &shIdx, sizeof(int));
 			//cout << "ShMem: " << shIdx << endl;
+			
+			if(shIdx >= SHNUM) return;//ERROR!
 		}
 #endif
 		
