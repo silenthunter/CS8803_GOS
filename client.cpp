@@ -17,6 +17,7 @@ struct workerThreadStruct
 	int port;
 	int* runningThreads;
 	char* file;
+	const char* host;
 	pthread_cond_t *finishedCondition;
 	pthread_mutex_t *finishedLock;
 	sockaddr_in* sockAddress;
@@ -65,10 +66,12 @@ class client
 	 * @brief the main thread that will spawn worker threads
 	 * to connect to the HTTP server
 	 * 
+	 * @param The address of the server you are connecting to
 	 * @param threadCount The number of threads to spawn
 	 * @param loopLimit How many times each worker thread will run
+	 * @param The host a proxy should redirect to
 	 */
-	void runWorkerThreads(char* file, int threadCount, int loopLimit)
+	void runWorkerThreads(char* dest, char* file, int threadCount, int loopLimit, const char* host)
 	{
 		pthread_t workerThreads[threadCount];
 		
@@ -77,10 +80,11 @@ class client
 		wrkData.loopLimit = loopLimit;
 		wrkData.runningThreads = &runningThreads;
 		wrkData.file = file;
+		wrkData.host = host;
 		wrkData.finishedCondition = &finishedCondition;
 		wrkData.finishedLock = &finishedLock;
 
-		hostent *server = gethostbyname("127.0.0.1");
+		hostent *server = gethostbyname(dest);
 		
 		struct sockaddr_in serv_addr;
 		
@@ -172,8 +176,8 @@ class client
 			int connected = connect(sockfd,(struct sockaddr *)data->sockAddress,sizeof(*(data->sockAddress)));
 			//EXPECT_EQ(connected, 0);
 
-		    /*struct timeval timeout;      
-			timeout.tv_sec = 1;
+		    struct timeval timeout;      
+			timeout.tv_sec = 5;
 			timeout.tv_usec = 0;
 
 			if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
@@ -182,10 +186,13 @@ class client
 
 			if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
 			    	sizeof(timeout)) < 0)
-			    	printf("setsockopt failed\n");*/
+			    	printf("setsockopt failed\n");
 
 				
-			string req = "GET " + string(data->file) + " HTTP/1.0\r\n\r\n";
+			string req = "GET " + string(data->file) + " HTTP/1.0\r\n";
+			if(data->host)
+				req += "Host: " + string(data->host) + "\r\n";
+			req += "\r\n";
 			
 			int err = write(sockfd, req.c_str(), strlen(req.c_str()));
 			
@@ -210,7 +217,7 @@ class client
 				continue;
 			}
 			
-			//cout << input << endl;
+			cout << input << endl;
 			
 			close(sockfd);
 		}
