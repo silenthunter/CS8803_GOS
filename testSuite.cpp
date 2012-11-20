@@ -1,4 +1,5 @@
 #include "server.cpp"
+#include "proxy.cpp"
 #include "client.cpp"
 
 /*
@@ -17,7 +18,7 @@ int queueSize[] = {1, 2, 4, 8, 16, 32};
 int clientThreadsNum = 5;
 int clientThreads[] = {1, 2, 4, 8, 16};
 int fileSizeNum = 7;
-char* fileSize[] = {"256b.txt", "1k.txt", "4k.txt", "32k.txt", "256k.txt", "1mb.txt", "4mb.txt"};
+char* fileSize[] = {"256b.txt", "1k.txt", "4k.txt", "32k.txt", "256k.txt", "1mb.txt", "4mb.txt, 16mb.txt"};
 int loopSizeNum = 4;
 int loopSize[] = {1, 2, 4, 8};
 
@@ -32,9 +33,15 @@ int main(int argc, char* argv[])
 	{
 		for(int j = 0; j < queueSizeNum; j++)
 		{
-			HTTP_Server srv(++port, queueSize[j]);
+			HTTP_Server srv(++port + 1000, queueSize[j]);
 			srv.setupThreadPool(workerThreads[i]);
 			srv.beginAcceptLoop();
+			
+			sleep(1);
+			
+			HTTP_Proxy prx(port, queueSize[j], port + 1000);
+			prx.setupThreadPool(workerThreads[i]);
+			prx.beginAcceptLoop();
 			
 			//wait for the startup
 			sleep(1);

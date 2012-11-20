@@ -1,0 +1,39 @@
+Compiling:
+run 'make'
+
+Running the Server:
+./http_server <port> <queueSize> <worker threads>
+
+Running the Proxy:
+./http_proxy <port> <remote port> <queueSize> <worker threads>
+
+*note: remote port is only used when using simple request from Telnet. Otherwise the proxy settings from the http_client or Firefox will replace it.*
+
+Example---------------------------------------
+>telnet 127.0.0.1 8000
+GET test.txt Http/1.0
+
+HTTP/1.0 200 OK
+
+this is a test file
+
+Connection closed by foreign host.
+----------------------------------------------
+
+Running the Client:
+./http_client <proxy address> <proxy port> <file name> <client threads> <loops per thread> [Remote host]
+
+*File name may only be a relative path if the server is 'http_server'. Otherwise use absolute*
+
+----------------------------
+ex: ./http_client 127.0.0.1 8000 google.com/index.html 1 1 google.com
+ex: ./http_client 127.0.0.1 8000 test.txt 1 1
+----------------------------
+
+This will connect to the proxy on port 8000, and sends:
+GET google.com/index.html
+Host: google.com
+
+The 'Remote Host' arg can be left of for connecting to the local server
+
+This project was tested on Factor066 and Factor067
