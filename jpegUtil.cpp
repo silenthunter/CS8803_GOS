@@ -8,12 +8,14 @@ struct jpegDataStruct
 	jpeg_source_mgr pub;
 	unsigned char* dat;
 	int len;
+	long pos;
 };
 
 //http://stackoverflow.com/questions/6327784/how-to-use-libjpeg-to-read-a-jpeg-from-a-stdistream
 void init_source(j_decompress_ptr cinfo)
 {
 	jpegDataStruct* src = (jpegDataStruct*)(cinfo->src);
+	src->pos = 0;
 	//seek to 0 here
 }
 
@@ -21,18 +23,23 @@ boolean fill_buffer (j_decompress_ptr cinfo)
 {
 	//Read to buffer
 	jpegDataStruct* src = (jpegDataStruct*)(cinfo->src);
-	src->pub.next_input_byte = src->dat;
-	src->pub.bytes_in_buffer = src->len;//how many you could read
+	src->pub.next_input_byte = src->dat + src->pos;
+	src->pub.bytes_in_buffer = 1;//src->len - src->pos;//how many you could read
+	src->pos++;
 
 	//eof?
-	return src->len ? FALSE : TRUE;
+	//return src->len > src->pos + 1 ? FALSE : TRUE;
+	return TRUE;
 }
 
 void skip(j_decompress_ptr cinfo, long count)
 {
+	jpegDataStruct* src = (jpegDataStruct*)(cinfo->src);
+
 	// Seek by count bytes forward
 	// Make sure you know how much you have cached and subtract that
 	// set bytes_in_buffer and next_input_byte
+	src->pos += count;
 }
 
 void term(j_decompress_ptr cinfo)
@@ -105,7 +112,7 @@ void jpegUtil::alterImage(dataStruct* dat)
 	jpeg_finish_decompress(&cinfo);
 	jpeg_destroy_decompress(&cinfo);
 	//free(row_pointer[0]);
-	/*/fclose(infile);
+	//fclose(infile);
 
 	FILE *outfile = fopen("output.jpg", "wb");
 
@@ -129,5 +136,5 @@ void jpegUtil::alterImage(dataStruct* dat)
 
 	jpeg_finish_compress(&cinfo2);
 	jpeg_destroy_compress(&cinfo2);
-	fclose(outfile);*/
+	fclose(outfile);
 }
