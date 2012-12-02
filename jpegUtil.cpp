@@ -11,6 +11,14 @@ struct jpegDataStruct
 	long pos;
 };
 
+struct jpegCompStruct
+{
+	jpeg_destination_mgr pub;
+	unsigned char* dat;
+	int len;
+	long pos;
+};
+
 //http://stackoverflow.com/questions/6327784/how-to-use-libjpeg-to-read-a-jpeg-from-a-stdistream
 void init_source(j_decompress_ptr cinfo)
 {
@@ -71,6 +79,51 @@ void make_stream(j_decompress_ptr cinfo, dataStruct* dat)
 	src->pub.next_input_byte = NULL; /* until buffer loaded */
 }
 
+//http://stackoverflow.com/questions/4559648/write-to-memory-buffer-instead-of-file-with-libjpeg
+void init_destination(j_compress_ptr cinfo)
+{
+	jpegCompStruct* dest = (jpegCompStruct*)cinfo->dest;
+	dest->pub.next_output_byte = dest->dat;
+	dest->pub.free_in_buffer = dest->len;
+}
+
+boolean empty_output_buffer(j_compress_ptr cinfo)
+{
+	jpegCompStruct* dest = (jpegCompStruct*)cinfo->dest;
+	dest->pub.next_output_byte = &(dest->dat[dest->pos]);
+	dest->pub.free_in_buffer = 1;
+
+	dest->pos++;
+
+	return true;
+}
+
+void term_destination(j_compress_ptr cinfo)
+{
+}
+
+void make_stream(j_compress_ptr cinfo, dataStruct* dat)
+{
+	jpegCompStruct* dest;
+
+	if(cinfo->dest == NULL)
+	{
+		/* first time for this JPEG object? */
+		cinfo->dest = (struct jpeg_destination_mgr *)
+		(*cinfo->mem->alloc_small)((j_common_ptr) cinfo, 
+		JPOOL_PERMANENT, sizeof(jpegCompStruct));
+	}
+
+	dest = reinterpret_cast<jpegCompStruct*>(cinfo->dest);
+	cinfo->dest->init_destination = init_destination;
+	cinfo->dest->empty_output_buffer = empty_output_buffer;
+	cinfo->dest->term_destination = term_destination;
+
+	dest->pos = 0;
+	dest->dat = dat->data;
+	dest->len = dat->len;
+}
+
 void jpegUtil::alterImage(dataStruct* dat)
 {
 	unsigned char* raw_data = NULL;
@@ -114,10 +167,9 @@ void jpegUtil::alterImage(dataStruct* dat)
 	//free(row_pointer[0]);
 	//fclose(infile);
 
-	FILE *outfile = fopen("output.jpg", "wb");
-
 	jpeg_create_compress(&cinfo2);
-	jpeg_stdio_dest(&cinfo2, outfile);
+
+	make_stream(&cinfo2, dat);
 
 	cinfo2.err = jpeg_std_error(&jerr);
 	cinfo2.image_width = cinfo.image_width;
@@ -136,5 +188,4 @@ void jpegUtil::alterImage(dataStruct* dat)
 
 	jpeg_finish_compress(&cinfo2);
 	jpeg_destroy_compress(&cinfo2);
-	fclose(outfile);
 }
