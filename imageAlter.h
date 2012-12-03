@@ -15,7 +15,7 @@ extern "C" {
 
 
 struct dataStruct {
-	int len;
+	unsigned int len;
 	u_char *data;
 };
 typedef struct dataStruct dataStruct;

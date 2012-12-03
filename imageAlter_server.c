@@ -12,6 +12,11 @@ imagealter_1_svc(dataStruct *argp, struct svc_req *rqstp)
 {
 	static dataStruct  result;
 
+	printf("Request\n");
+
+	result.data = argp->data;
+	result.len = argp->len;
+
 	jpegUtil::alterImage(&result);
 
 	return &result;

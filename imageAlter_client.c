@@ -14,6 +14,9 @@ imagealterprog_1(char *host)
 	dataStruct  *result_1;
 	dataStruct  imagealter_1_arg;
 
+	imagealter_1_arg.len = 10000;
+	imagealter_1_arg.data = (unsigned char*) malloc(10000);
+
 #ifndef	DEBUG
 	clnt = clnt_create (host, IMAGEALTERPROG, IMAGEALTERVERS, "udp");
 	if (clnt == NULL) {

@@ -10,9 +10,9 @@ xdr_dataStruct (XDR *xdrs, dataStruct *objp)
 {
 	register int32_t *buf;
 
-	 if (!xdr_int (xdrs, &objp->len))
+	 if (!xdr_u_int (xdrs, &objp->len))
 		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->data, (uint*)&objp->len, objp->len, sizeof (u_char), (xdrproc_t) xdr_u_char))
+	 if (!xdr_bytes (xdrs, (char **)&objp->data, (uint*)&objp->len, objp->len))
 		 return FALSE;
 	return TRUE;
 }
