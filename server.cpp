@@ -617,7 +617,7 @@ class HTTP_Server
 				file = file.substr(idx1 + hostString.length());
 			}
 			
-			cout << "Method: " << method << endl << "File: " << file << endl << "Host: " << host << endl << "Port: " << altPort << endl;
+			//cout << "Method: " << method << endl << "File: " << file << endl << "Host: " << host << endl << "Port: " << altPort << endl;
 			
 			DataMethod methodFlag = GET;
 			if(method.compare("SHBUFF") == 0) methodFlag = SHBUFF;

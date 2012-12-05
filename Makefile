@@ -11,7 +11,7 @@ run-tests: tests
 	./UnitTests
 
 analyze: 
-	g++ -g -o testSuite testSuite.cpp server.cpp client.cpp -lpthread 
+	g++ -g -o testSuite testSuite.cpp server.cpp client.cpp imageAlter_xdr.c imageAlter_clnt.c -lpthread 
 
 analyzeSocket: 
 	g++ -g -o testSuiteNoShm testSuite_noshm.cpp server.cpp client.cpp -lpthread 

@@ -112,7 +112,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 			
 			if(err > 0) 
 			{
-				while(recv + err >= contSize)
+				while(recv + err >= contSize || contents == NULL)
 				{
 					contSize *= 2;
 					contents = (unsigned char*)realloc(contents, contSize);
@@ -123,6 +123,8 @@ class HTTP_Proxy : public virtual HTTP_Server
 			}
 			
 		}while(err > 0);
+
+		if(contents == NULL) return; //Something has gone wrong, just end the connection
 		
 		//cout << contents << endl;
 		if(strstr((char*)contents, "200 OK") && ((fileName.rfind("jpeg") == fileName.length() - 4) ||

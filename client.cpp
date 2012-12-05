@@ -217,7 +217,7 @@ class client
 				continue;
 			}
 			
-			cout << input << endl;
+			//cout << input << endl;
 			
 			close(sockfd);
 		}
