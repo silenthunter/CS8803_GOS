@@ -63,7 +63,20 @@ class HTTP_Proxy : public virtual HTTP_Server
 		serv_addr.sin_port = htons(destPort);
 		
 		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		
+
+		//Set timeout
+		struct timeval timeout;      
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+			sizeof(timeout)) < 0)
+			printf("setsockopt failed\n");
+
+		if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+			sizeof(timeout)) < 0)
+			printf("setsockopt failed\n");
+
 		int connected = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
 		
 		bool onLocal = false;
@@ -116,7 +129,7 @@ class HTTP_Proxy : public virtual HTTP_Server
 		(fileName.rfind("jpg") == fileName.length() - 3)))
 		{
 			int idx;
-			for(idx = 4; idx < recv && !(contents[idx - 3] == '\r' && contents[idx - 2] == '\n' && contents[idx - 1] == '\r' && contents[idx] == '\n'); idx++);
+			for(idx = 4; idx < recv - 1 && !(contents[idx - 3] == '\r' && contents[idx - 2] == '\n' && contents[idx - 1] == '\r' && contents[idx] == '\n'); idx++);
 			idx++;
 			dataStruct dat;
 			dataStruct *result;

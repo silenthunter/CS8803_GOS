@@ -715,13 +715,13 @@ class HTTP_Server
 			header = "HTTP/1.0 403 Forbidden";
 			body = "403 Forbidden";
 			
-			string combined = header + "\n\n" + body;
+			string combined = header + "\r\n\r\n" + body;
 			sendData(socketNum, combined.c_str(), strlen(combined.c_str()), method);
 		}
 		//Make sure the file opened
 		else if(inFile.is_open())
 		{
-			header = "HTTP/1.0 200 OK\n\n";
+			header = "HTTP/1.0 200 OK\r\n\r\n";
 			
 			//Write the header first
 			sendData(socketNum, header.c_str(), strlen(header.c_str()), method);
@@ -743,7 +743,7 @@ class HTTP_Server
 			header = "HTTP/1.0 404 Not Found";
 			body = "Page not found";
 			
-			string combined = header + "\n\n" + body;
+			string combined = header + "\r\n\r\n" + body;
 			sendData(socketNum, combined.c_str(), strlen(combined.c_str()), method);
 			
 			//I need to make sure this doesn't happen in benchmarking
