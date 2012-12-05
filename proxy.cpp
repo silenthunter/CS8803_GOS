@@ -15,6 +15,7 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include "server.cpp"
+#include "imageAlter.h"
 //#include "client.cpp"
 
 namespace{
@@ -23,20 +24,26 @@ class HTTP_Proxy : public virtual HTTP_Server
 	private:
 	
 	int remoteServerPort;
+	CLIENT* clnt;
 	
 	public:
 	HTTP_Proxy(int recvPort, int acceptQueueSize, int remotePort) 
 		: HTTP_Server(recvPort, acceptQueueSize)
 	{
 		remoteServerPort = remotePort;
+		clnt = clnt_create("localhost", IMAGEALTERPROG, IMAGEALTERVERS, "tcp");
+		if (clnt == NULL) {
+			clnt_pcreateerror ("localhost");
+			exit (1);
+		}
 	}
 	
 	virtual void parseHTTPRequest(string fileName, int socketNum, DataMethod method, string host, int altPort)
-	{		
+	{
 		struct sockaddr_in serv_addr;
 		hostent *server = host.length() == 0 ? gethostbyname("127.0.0.1") : gethostbyname(host.c_str());
 		
-	    struct ifaddrs * ifAddrStruct=NULL;
+		struct ifaddrs * ifAddrStruct=NULL;
 		struct ifaddrs * ifa=NULL;
 		void * tmpAddrPtr=NULL;
 		
@@ -73,92 +80,58 @@ class HTTP_Proxy : public virtual HTTP_Server
 		
 		delete ifAddrStruct;
 		
-		//Determine if the local server is ours
-		if(onLocal)
-		{
-			//unregister the server in shared memory
-			for(int i = 0; i < MAXSERVERS; i++)
-				if(serverList[i] == destPort)
-				{
-					#ifdef USESHARED
-					useShared = true;
-					#endif
-				}
-		}
-			
-		
 		string req = "";
-#ifdef SHMEM
-		if(useShared)
-			req = "SHBUFF " + fileName + " HTTP/1.0\r\n\r\n";
-		else
-#endif
-		req = "GET " + fileName + " HTTP/1.0\r\n\r\n";
+		req = "GET " + fileName + " HTTP/1.0\r\n";
+		if(host.length() > 0) req += "Host:" + host + "\r\n";
+		req += "\r\n";
 		
 		int err = write(sockfd, req.c_str(), strlen(req.c_str()));
 		
 		//Read back from the socket
-		char buf[SENDSIZE];
-		string contents = "";
-		
-#ifdef SHMEM
-		int shIdx = 0;
-		if(useShared)
-		{
-			//Get the shared memory index
-			err = read(sockfd, buf, sizeof(buf));
-			bcopy(buf, &shIdx, sizeof(int));
-			//cout << "ShMem: " << shIdx << endl;
-			
-			if(shIdx >= SHNUM) return;//ERROR!
-		}
-#endif
+		unsigned char buf[SENDSIZE];
+		unsigned char *contents = 0x0;
+		unsigned long contSize = 1;
+		unsigned long recv = 0;
 		
 		do
 		{
-#ifdef SHMEM
-			if(useShared)
-			{
-				//cout << "before" << endl;
-				pthread_mutex_lock((pthread_mutex_t*)(shMem[shIdx] + 1));
-				
-				char* cond = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t);
-				
-				while(*(shMem[shIdx]) != MODIFIED)
-				{
-					//cout << "waiting" << endl;
-					pthread_cond_wait((pthread_cond_t*) cond, (pthread_mutex_t*)(shMem[shIdx] + 1));
-				}
-				
-				char* mutexEnd = (char*)(shMem[shIdx] + 1) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t);
-				char* dataStart = mutexEnd + sizeof(int);
-				
-				bcopy(mutexEnd, &err, sizeof(int));
-				bcopy(dataStart, buf, err);
-				
-				//Mark the buffer as being read
-				*(shMem[shIdx]) = READ;
-				
-				//cout << "read" << endl;
-				
-				pthread_cond_signal((pthread_cond_t*)cond);
-				
-				pthread_mutex_unlock((pthread_mutex_t*)(shMem[shIdx] + 1));
-				
-				//cout << "after" << endl;
-			}
-			else
-#endif
 			err = read(sockfd, buf, sizeof(buf));
 			
-			if(err > 0) contents += string(buf, err);
+			if(err > 0) 
+			{
+				while(recv + err >= contSize)
+				{
+					contSize *= 2;
+					contents = (unsigned char*)realloc(contents, contSize);
+				}
+				//contents += string(buf, err);
+				bcopy(buf, contents + recv, err);
+				recv += err;
+			}
 			
 		}while(err > 0);
 		
 		//cout << contents << endl;
+		if(strstr((char*)contents, "200 OK") && ((fileName.rfind("jpeg") == fileName.length() - 4) ||
+		(fileName.rfind("jpg") == fileName.length() - 3)))
+		{
+			int idx;
+			for(idx = 4; idx < recv && !(contents[idx - 3] == '\r' && contents[idx - 2] == '\n' && contents[idx - 1] == '\r' && contents[idx] == '\n'); idx++);
+			idx++;
+			dataStruct dat;
+			dataStruct *result;
+			dat.data = contents + idx;
+			dat.len = recv - idx;
+
+			result = imagealter_1(&dat, clnt);
+			if(result == NULL)
+				clnt_perror(clnt, "call failed");
+			else
+				bcopy(result->data, contents + idx, result->len);
+		}
 		
 		//Now write the contents back to the client
-		write(socketNum, contents.c_str(), strlen(contents.c_str()));
+		write(socketNum, contents, recv);
 		
 	}
 };
